@@ -29,10 +29,13 @@ npm run build    # gera a versão final em dist/
 
 ## Publicar de graça no GitHub Pages
 
-1. No GitHub, abra **Settings → Pages**.
-2. Em **Build and deployment → Source**, escolha **GitHub Actions**.
-3. Faça um push na branch `main`. O workflow `.github/workflows/deploy.yml` testa, compila e publica.
-4. O endereço fica assim: `https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO/`.
+A cada push na branch `main`, o workflow `.github/workflows/deploy.yml` testa, compila e envia o app pronto para a branch `gh-pages`.
+
+O endereço é `https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO/`.
+
+Se o site não aparecer, abra **Settings → Pages** e confira:
+- **Source**: **Deploy from a branch**.
+- **Branch**: `gh-pages`, pasta `/ (root)`.
 
 ## Instalar no celular
 
