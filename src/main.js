@@ -3,6 +3,7 @@ import { UNITS, DECKS, AUDIOS, READINGS, WRITINGS, SPEAK } from "./content.js";
 import { EXAMS, OFFICIAL, SCORING, PRESENTAZIONE } from "./exams.js";
 import { PHRASES, PAIRS } from "./pronuncia.js";
 import { keyOf, fullSentence } from "./audio-keys.js";
+import { authEnabled, initAuth, onAuthChange, currentUser, lastSyncAt, inRecovery, syncNow, schedulePush, signIn, signUp, sendReset, setNewPassword, signOut } from "./auth.js";
 
 /* ============================== ÍCONES ============================== */
 const P = {
@@ -28,6 +29,8 @@ const P = {
   ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
   back:'<path d="M15 6l-6 6 6 6"/>',
   lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  sync:'<path d="M20 11a8 8 0 0 0-14.9-3M4 13a8 8 0 0 0 14.9 3"/><path d="M4 4v4h4M20 20v-4h-4"/>',
 };
 const I = (n, c = "") => `<svg class="icon ${c}" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
 
@@ -40,7 +43,7 @@ try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(blank(),
 const GOAL = 30;
 const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 const dayNum = (s) => Math.round(Date.parse(s + "T12:00:00") / 864e5);
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} renderBar(); }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} renderBar(); schedulePush(); }
 function touch(xp) {
   const t = today();
   if (S.lastDay !== t) { S.streak = S.lastDay && dayNum(t) - dayNum(S.lastDay) === 1 ? S.streak + 1 : 1; S.lastDay = t; }
@@ -166,11 +169,13 @@ function skills() {
 
 /* ============================== MOLDURA ============================== */
 const NAV = [["inicio", "Início", "home"], ["lezioni", "Lições", "book"], ["pratica", "Praticar", "target"], ["simulado", "Simulado", "clip"], ["prova", "A prova", "flag"]];
-const SECTION = { inicio: "inicio", lezioni: "lezioni", lezione: "lezioni", pratica: "pratica", vocaboli: "pratica", pronuncia: "pratica", ascolto: "pratica", lettura: "pratica", scrittura: "pratica", parlato: "pratica", simulado: "simulado", esame: "simulado", ufficiale: "simulado", prova: "prova" };
+const SECTION = { inicio: "inicio", lezioni: "lezioni", lezione: "lezioni", conta: "inicio", pratica: "pratica", vocaboli: "pratica", pronuncia: "pratica", ascolto: "pratica", lettura: "pratica", scrittura: "pratica", parlato: "pratica", simulado: "simulado", esame: "simulado", ufficiale: "simulado", prova: "prova" };
 function renderBar() {
   const s = $("#streak"), x = $("#xp");
   if (s) s.innerHTML = I("fire") + (S.streak || 0);
   if (x) x.innerHTML = I("star") + (S.xp || 0);
+  const u = $("#acct");
+  if (u) { const me = currentUser(); u.hidden = !authEnabled; u.innerHTML = me ? `<span class="avatar">${esc(((me.user_metadata || {}).name || me.email || "?").trim()[0].toUpperCase())}</span>` : I("user") + "Entrar"; u.setAttribute("aria-label", me ? "Minha conta" : "Entrar"); }
 }
 function route() {
   stopAudio(); clearInterval(timerId); document.body.classList.remove("focus");
@@ -258,6 +263,7 @@ const VIEWS = {
   v.innerHTML = `
   <section class="hero"><div class="stack"><span class="eyebrow">${S.streak > 1 ? S.streak + " dias seguidos" : "Seu italiano de hoje"}</span><h1>${hi}</h1>
     <p class="muted">${todayXP() >= GOAL ? "Meta do dia cumprida. Bravissimo!" : `Faltam ${GOAL - todayXP()} XP para a meta de hoje.`}</p></div>${ring(todayXP(), GOAL)}</section>
+  ${authEnabled && !currentUser() ? `<a class="card" href="#conta" style="text-decoration:none;color:inherit;grid-template-columns:auto 1fr;align-items:center"><span class="avatar big" style="background:var(--rosso)">${I("user")}</span><div><b>Crie sua conta grátis</b><p class="small muted">Salve o progresso e continue em qualquer celular ou computador.</p></div></a>` : ""}
   <a class="cta" href="#lezione--${nu.id}"><span class="eyebrow">Continuar · ${nu.lv} ${LV[nu.lv].n}</span><h2>${esc(nu.t)}</h2><div class="bar"><i style="width:${pct(best(nu.id))}"></i></div><span class="go">${I("play")} Começar lição</span></a>
   <div class="section-title"><h2>Il tuo percorso</h2><span class="small muted">${pct(lvProgress(view))}</span></div>
   <div class="seg" role="group" aria-label="Etapa">${["A1", "A2", "B1"].map((l) => `<button type="button" data-lv="${l}" aria-pressed="${l === view}">${l} · ${LV[l].n}</button>`).join("")}</div>
@@ -525,6 +531,65 @@ const VIEWS = {
  },
 };
 
+/* ============================== CONTA ============================== */
+VIEWS.conta = function (v) {
+  const me = currentUser();
+  const head = `${back("#inicio", "Início")}<div class="stack"><span class="eyebrow">Il tuo account</span><h1>${me ? "Minha conta" : "Entrar"}</h1></div>`;
+  if (!authEnabled) { v.innerHTML = head + `<section class="card"><p>O login ainda não foi ativado neste app. Seu progresso está salvo neste aparelho.</p></section>`; return; }
+  const show = (t, ok) => { const m = $("#msg"); m.className = "banner" + (ok ? " ok" : ""); m.textContent = t; m.hidden = false; };
+  if (inRecovery()) {
+    v.innerHTML = head + `<form class="card" id="f"><h3>Crie uma nova senha</h3><label class="small" for="np">Nova senha (mínimo 8 caracteres)</label><input class="text-in" id="np" type="password" autocomplete="new-password" minlength="8" required><p class="banner" id="msg" hidden></p><button class="btn" type="submit">Salvar nova senha</button></form>`;
+    $("#f").onsubmit = async (e) => {
+      e.preventDefault();
+      try { await setNewPassword($("#np").value); show("Senha alterada. Você já está conectado.", true); setTimeout(route, 1200); }
+      catch (err) { show(err.message); }
+    };
+    return;
+  }
+  if (me) {
+    const name = (me.user_metadata || {}).name || "", ls = lastSyncAt();
+    v.innerHTML = head + `<section class="card"><div class="row"><span class="avatar big">${esc((name || me.email)[0].toUpperCase())}</span><div style="min-width:0"><b>${esc(name || "Estudante")}</b><p class="small muted" style="overflow-wrap:anywhere">${esc(me.email)}</p></div></div>
+      <div class="score-row"><span>Progresso na nuvem</span><span class="pill-tag ${ls ? "ok" : ""}">${ls ? "Salvo às " + ls.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "Sincronizando…"}</span></div>
+      <div class="row"><button class="btn sm ghost" id="sync" type="button">${I("sync")}Sincronizar agora</button><button class="btn sm red" id="out" type="button">Sair</button></div>
+      <p class="note">Seu progresso é salvo sozinho enquanto você estuda. Entre com o mesmo e-mail em outro aparelho para continuar de onde parou.</p></section>`;
+    $("#sync").onclick = async () => { $("#sync").disabled = true; await syncNow(); route(); };
+    $("#out").onclick = async () => { $("#out").disabled = true; await signOut(); route(); };
+    return;
+  }
+  const mode = window._authMode || "in";
+  v.innerHTML = head + `<div class="seg" style="grid-template-columns:1fr 1fr" role="group" aria-label="Opção"><button type="button" data-m="in" aria-pressed="${mode !== "up"}">Entrar</button><button type="button" data-m="up" aria-pressed="${mode === "up"}">Criar conta</button></div>
+   <form class="card" id="f" novalidate>
+    ${mode === "reset" ? `<h3>Recuperar senha</h3><p class="small muted">Digite o e-mail da sua conta. Vamos enviar um link para você criar uma senha nova.</p>` : ""}
+    ${mode === "up" ? `<label class="small" for="nm">Seu nome</label><input class="text-in" id="nm" type="text" autocomplete="given-name" required>` : ""}
+    <label class="small" for="em">E-mail</label><input class="text-in" id="em" type="email" autocomplete="email" inputmode="email" required>
+    ${mode !== "reset" ? `<label class="small" for="pw">Senha${mode === "up" ? " (mínimo 8 caracteres)" : ""}</label><input class="text-in" id="pw" type="password" autocomplete="${mode === "up" ? "new-password" : "current-password"}" minlength="8" required>` : ""}
+    <p class="banner" id="msg" hidden></p>
+    <button class="btn" type="submit" id="go">${mode === "up" ? "Criar conta" : mode === "reset" ? "Enviar link" : "Entrar"}</button>
+    ${mode === "in" ? `<button class="small muted" type="button" id="forgot" style="justify-self:start;text-decoration:underline">Esqueci a senha</button>` : mode === "reset" ? `<button class="small muted" type="button" id="backin" style="justify-self:start;text-decoration:underline">Voltar para Entrar</button>` : ""}
+   </form>
+   <p class="note">Com a conta, o progresso fica salvo na nuvem e aparece em qualquer aparelho. O que você já fez neste celular é mantido e somado à conta.</p>`;
+  $$("[data-m]", v).forEach((b) => (b.onclick = () => { window._authMode = b.dataset.m; route(); }));
+  if ($("#forgot")) $("#forgot").onclick = () => { window._authMode = "reset"; route(); };
+  if ($("#backin")) $("#backin").onclick = () => { window._authMode = "in"; route(); };
+  $("#f").onsubmit = async (e) => {
+    e.preventDefault();
+    const go = $("#go"), em = $("#em").value.trim(), pw = $("#pw") ? $("#pw").value : "";
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return show("Digite um e-mail válido.");
+    if (mode !== "reset" && pw.length < 8) return show("A senha precisa ter pelo menos 8 caracteres.");
+    if (mode === "up" && !$("#nm").value.trim()) return show("Digite seu nome.");
+    go.disabled = true;
+    try {
+      if (mode === "up") {
+        const r = await signUp(em, pw, $("#nm").value.trim());
+        if (r.needsConfirm) show("Conta criada. Enviamos um e-mail para " + em + ". Abra o link para confirmar e depois entre aqui.", true);
+        else { window._authMode = null; location.hash = "#inicio"; }
+      } else if (mode === "reset") {
+        await sendReset(em); show("Se este e-mail tiver conta, você vai receber um link para criar uma senha nova.", true);
+      } else { await signIn(em, pw); window._authMode = null; location.hash = "#inicio"; }
+    } catch (err) { show(err.message); } finally { go.disabled = false; }
+  };
+};
+
 /* ============================== BOAS-VINDAS ============================== */
 function welcome(v) {
   v.innerHTML = `<div class="welcome"><div class="bigflag" aria-hidden="true"><i></i><i><b>B1</b></i><i></i></div>
@@ -641,6 +706,8 @@ function runExam(v, e) {
 }
 
 /* ============================== INÍCIO ============================== */
+onAuthChange(() => { renderBar(); const h = (location.hash || "").slice(1).split("--")[0]; if (h === "conta" || h === "inicio" || h === "") route(); });
+initAuth(() => S, (m) => { S = Object.assign(blank(), m); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} if (!document.body.classList.contains("focus")) route(); else renderBar(); });
 route();
 if ("serviceWorker" in navigator && location.protocol !== "file:") window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 let installEvt = null;

@@ -77,6 +77,23 @@ python3 scripts/gen-audio.py --voices PASTA_COM_AS_VOZES
 
 As vozes `it_IT-serena-high` e `it_IT-paola-medium` ficam em [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main/it/it_IT). O script só gera o que falta. O `npm test` avisa se alguma fala ficou sem áudio.
 
+## Ativar o login (conta e progresso na nuvem)
+
+O login usa o [Supabase](https://supabase.com), que tem plano gratuito. Sem configuração, o app funciona normalmente e o progresso fica só no aparelho.
+
+1. Crie um projeto em **supabase.com/dashboard** (por exemplo, `italiano-b1`).
+2. Em **SQL Editor → New query**, cole o conteúdo de `supabase/migrations/001_progress.sql` e clique em **Run**. Isso cria a tabela `progress`, em que cada pessoa só enxerga o próprio progresso.
+3. Em **Authentication → URL Configuration**:
+   - **Site URL**: `https://viniciusliniker1-spec.github.io/italiano-b1/`
+   - **Redirect URLs**: acrescente `https://viniciusliniker1-spec.github.io/italiano-b1/**`
+4. Em **Project Settings → API**, copie a **Project URL** e a **Publishable key** (ou a anon key). As duas são públicas. Nunca use a `service_role` / `secret`.
+5. No GitHub, abra **Settings → Secrets and variables → Actions → Variables** e crie:
+   - `VITE_SUPABASE_URL` com a Project URL;
+   - `VITE_SUPABASE_PUBLISHABLE_KEY` com a Publishable key.
+6. Rode de novo a publicação em **Actions → Publicar no GitHub Pages → Run workflow**.
+
+O botão **Entrar** aparece no topo do app. A pessoa cria a conta com nome, e-mail e senha e confirma pelo e-mail. A recuperação de senha também é por e-mail. O progresso do aparelho é somado ao da conta, sem perder nada.
+
 ## Próximos passos
 
 - **Correção de textos por IA**: precisa de um pequeno servidor (por exemplo, um Cloudflare Worker) que guarde a chave da IA fora do app, como o Professor Noah do Bibliolingo.
