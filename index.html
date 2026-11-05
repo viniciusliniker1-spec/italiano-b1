@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cittadinanza B1</title>
 <meta name="description" content="Aprenda italiano do zero ao B1 para o exame de cidadania.">
-<meta name="theme-color" content="#0F5C4A">
+<meta name="theme-color" content="#008C45">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
@@ -16,19 +16,17 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500;0,6..96,700;1,6..96,500&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <div class="brand">
-      <span class="code">Fascicolo personale · Livello B1 · QCER</span>
-      <h1>Cittadinanza <em>B1</em></h1>
-      <p class="muted" id="sync-note">Seu italiano para o exame de cidadania.</p>
-      <button class="btn small" id="install" type="button" hidden>Instalar app</button>
-    </div>
-    <div class="timbro" title="Prontidão geral para o exame"><div><b id="ready-pct">0%</b><span>pronto</span></div></div>
-  </header>
-  <nav class="tabs" id="tabs" aria-label="Seções"></nav>
-  <main id="view"></main>
-</div>
+<header class="appbar">
+  <div class="appbar-in">
+    <a class="logo" href="#inicio" aria-label="Cittadinanza B1, início"><span class="flag" aria-hidden="true"><i></i><i></i><i></i></span><b>Cittadinanza B1</b></a>
+    <button class="chip" id="install" type="button" hidden>Instalar</button>
+    <span class="chip fire" id="streak" title="Dias seguidos"></span>
+    <span class="chip xp" id="xp" title="Pontos de experiência"></span>
+  </div>
+  <div class="tricolore" aria-hidden="true"><i></i><i></i><i></i></div>
+</header>
+<main id="view"></main>
+<nav class="nav" aria-label="Seções"><div class="nav-in" id="nav"></div></nav>
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>
