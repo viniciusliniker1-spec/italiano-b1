@@ -154,12 +154,15 @@ const FREQ = [...new Set(VOCAB.map((v) => v[3]))].map((id) => {
   return id[0] === "f" ? { id, lv: n <= 4 ? "A1" : "A2", t: `Essenciais ${n}`, sub: `palavras ${(n - 1) * 250 + 1}–${Math.min(n * 250, 1980)} das fundamentais` }
                        : { id, lv: "B1", t: `Alto uso ${n}`, sub: `palavras ${(n - 1) * 250 + 1}–${n * 250} de alto uso` };
 });
-const ALLDECKS = [...DECKS.map((d) => ({ id: d.id, lv: d.lv, t: d.t, sub: "tema" })), ...FREQ];
+/* Primeiro os baralhos de frequência (das palavras mais usadas para as menos usadas), depois os temáticos. */
+const ALLDECKS = [...FREQ, ...DECKS.map((d) => ({ id: d.id, lv: d.lv, t: d.t, sub: "tema" }))];
 const ALLCARDS = [
-  ...DECKS.flatMap((d) => d.w.map((w, i) => ({ id: d.id + i, deck: d.id, it: w[0], pt: w[1], pr: w[2] }))),
   ...VOCAB.map((v) => ({ id: "w:" + v[0], deck: v[3], it: v[0], pt: v[1], pr: v[2] })),
+  ...DECKS.flatMap((d) => d.w.map((w, i) => ({ id: d.id + i, deck: d.id, it: w[0], pt: w[1], pr: w[2] }))),
 ];
-const NEW_PER_DAY = 15;
+/* Uma palavra conta como aprendida depois de 3 acertos seguidos. */
+const LEARN = 3;
+const isLearned = (c) => ((S.cards[c.id] || {}).box || 0) >= LEARN;
 /* Dicionário: palavras únicas, as do NVdB (em ordem de uso) primeiro e depois as dos temas. */
 const DICT = [...ALLCARDS.filter((c) => c.id.startsWith("w:")), ...ALLCARDS.filter((c) => !c.id.startsWith("w:"))].filter((c, i, a) => a.findIndex((x) => x.it === c.it) === i);
 const best = (id) => (S.lessons[id] || {}).best || 0;
@@ -168,18 +171,9 @@ const startUnits = () => UNITS.filter((u) => RANK[u.lv] >= RANK[S.level || "A1"]
 const nextUnit = () => startUnits().find((u) => !u.extra && best(u.id) < 0.8) || startUnits().find((u) => best(u.id) < 0.8) || UNITS[UNITS.length - 1];
 const stage = () => nextUnit().lv;
 const fitting = (list) => list.filter((x) => RANK[x.lv || "B1"] <= RANK[stage()]);
-const activeDecks = () => (S.decks || ALLDECKS.filter((d) => RANK[d.lv] <= RANK[S.level || "A1"]).map((d) => d.id)).filter((id) => ALLDECKS.some((d) => d.id === id));
-const INTERVALS = [0, 1, 2, 4, 8, 16, 32];
-const newToday = () => (S.newToday && S.newToday.day === today() ? S.newToday.n : 0);
-/* Revisões do dia + no máximo 15 palavras novas por dia, na ordem dos baralhos (as mais usadas primeiro). */
-const dueCards = () => {
-  const t = dayNum(today()), on = new Set(activeDecks()), order = ALLDECKS.map((d) => d.id).filter((id) => on.has(id));
-  const review = ALLCARDS.filter((c) => on.has(c.deck) && S.cards[c.id] && S.cards[c.id].due <= t);
-  const fresh = [];
-  const room = Math.max(0, NEW_PER_DAY - newToday());
-  for (const id of order) { if (fresh.length >= room) break; for (const c of ALLCARDS) { if (c.deck === id && !S.cards[c.id]) { fresh.push(c); if (fresh.length >= room) break; } } }
-  return review.concat(fresh);
-};
+/* Por padrão: todos os baralhos de frequência (sem limite) e os temáticos até o nível escolhido. */
+const activeDecks = () => (S.decks || ALLDECKS.filter((d) => FREQ.includes(d) || RANK[d.lv] <= RANK[S.level || "A1"]).map((d) => d.id)).filter((id) => ALLDECKS.some((d) => d.id === id));
+const learnedCount = () => { const on = new Set(activeDecks()); return ALLCARDS.filter((c) => on.has(c.deck) && isLearned(c)).length; };
 function skills() {
   const ex = S.exams.filter((x) => x.pts);
   const bestEx = (k) => (ex.length ? Math.max(...ex.map((x) => x.pts[k] || 0)) / 12 : null);
@@ -281,7 +275,7 @@ let timerId = null;
 const VIEWS = {
  inicio(v) {
   if (!S.level) return welcome(v);
-  const nu = nextUnit(), st = stage(), due = dueCards().length, sk = skills();
+  const nu = nextUnit(), st = stage(), sk = skills();
   const h = new Date().getHours(), hi = h < 13 ? "Buongiorno!" : h < 18 ? "Buon pomeriggio!" : "Buonasera!";
   const view = window._pathLv || st;
   const list = UNITS.filter((u) => u.lv === view);
@@ -295,7 +289,7 @@ const VIEWS = {
   <div class="path">${list.map((u) => { const b = best(u.id), cls = b >= 0.8 ? "done" : u === nu ? "now" : ""; return `<a class="node ${cls}" href="#lezione--${u.id}"><span class="dot">${b >= 0.8 ? I("check") : u === nu ? I("play") : UNITS.indexOf(u) + 1}</span><div><b>${esc(u.t)}</b><span>${u.extra ? "Extra · não cai na prova" : b ? "Melhor: " + pct(b) : "6 exercícios"}</span></div></a>`; }).join("")}</div>
   <div class="section-title"><h2>Pratica</h2></div>
   <div class="tiles">
-    <a class="tile" href="#vocaboli"><span class="ic">${I("cards")}</span><b>Vocabulário</b><span>${due} para revisar</span></a>
+    <a class="tile" href="#vocaboli"><span class="ic">${I("cards")}</span><b>Vocabulário</b><span>${learnedCount().toLocaleString("pt-BR")} aprendidas</span></a>
     <a class="tile r" href="#pronuncia"><span class="ic">${I("mic")}</span><b>Pronúncia</b><span>Ouça e repita</span></a>
     <a class="tile" href="#ascolto"><span class="ic">${I("head")}</span><b>Escuta</b><span>Diálogos reais</span></a>
   </div>
@@ -329,8 +323,7 @@ const VIEWS = {
  },
 
  pratica(v) {
-  const due = dueCards().length;
-  const tiles = [["vocaboli", "cards", "Vocabulário", `${due} cartões para hoje`, ""], ["dizionario", "open", "Dicionário", `${DICT.length.toLocaleString("pt-BR")} palavras`, ""], ["pronuncia", "mic", "Pronúncia", "Ouça, repita e grave", "r"], ["ascolto", "head", "Escuta", `${AUDIOS.length} áudios`, ""], ["lettura", "open", "Leitura", `${READINGS.length} textos`, ""], ["scrittura", "pen", "Escrita", "Temas da prova", "r"], ["parlato", "chat", "Fala", "Conversa com cronômetro", ""]];
+  const tiles = [["vocaboli", "cards", "Vocabulário", `${learnedCount().toLocaleString("pt-BR")} palavras aprendidas`, ""], ["dizionario", "open", "Dicionário", `${DICT.length.toLocaleString("pt-BR")} palavras`, ""], ["pronuncia", "mic", "Pronúncia", "Ouça, repita e grave", "r"], ["ascolto", "head", "Escuta", `${AUDIOS.length} áudios`, ""], ["lettura", "open", "Leitura", `${READINGS.length} textos`, ""], ["scrittura", "pen", "Escrita", "Temas da prova", "r"], ["parlato", "chat", "Fala", "Conversa com cronômetro", ""]];
   v.innerHTML = `<div class="stack"><span class="eyebrow">Pratica</span><h1>Praticar</h1><p class="muted">Treine cada habilidade da prova separadamente.</p></div>
   <div class="tiles">${tiles.map(([h, ic, t, d, c]) => `<a class="tile ${c}" href="#${h}"><span class="ic">${I(ic)}</span><b>${t}</b><span>${d}</span></a>`).join("")}</div>
   <section class="card" ${isNative ? "hidden" : ""}><h3>Usar sem internet</h3><p class="small muted">As lições já funcionam offline. Baixe também os áudios (cerca de 8 MB) para ouvir sem conexão. Melhor fazer isso no Wi-Fi.</p>
@@ -351,29 +344,55 @@ const VIEWS = {
 
  vocaboli(v) {
   const on = activeDecks(), pool = ALLCARDS.filter((c) => on.includes(c.deck));
-  const due = shuffle(dueCards()).slice(0, 30);
-  const boxes = [0, 1, 2, 3, 4, 5, 6].map((b) => pool.filter((c) => ((S.cards[c.id] || {}).box || 0) === b).length);
+  const mode = window._vocMode || "learn";
   v.innerHTML = `${back("#pratica", "Praticar")}<div class="stack"><span class="eyebrow">Lessico</span><h1>Vocabulário</h1>
-    <p class="muted">Ouça a palavra, tente lembrar o significado e toque no cartão. Se acertar, ele volta daqui a alguns dias. Se errar, volta hoje.</p></div>
+    <p class="muted">As palavras vêm em ordem, das mais usadas para as menos usadas, sem limite e sem espera. Se você errar, a palavra volta logo. Ela só sai da fila depois de ${LEARN} acertos.</p></div>
+    <div class="seg" style="grid-template-columns:1fr 1fr" role="group" aria-label="Modo"><button type="button" data-mode="learn" aria-pressed="${mode === "learn"}">Aprender</button><button type="button" data-mode="review" aria-pressed="${mode === "review"}">Revisar aprendidas</button></div>
+    <section class="card" style="gap:8px" id="lprog"></section>
     <section id="study" class="stack"></section>
     <a class="tile" href="#dizionario"><span class="ic">${I("open")}</span><b>Dicionário</b><span>Busque entre ${DICT.length.toLocaleString("pt-BR")} palavras, com áudio e pronúncia</span></a>
-    <section class="card"><div class="row"><span class="eyebrow" style="flex:1">Baralhos ativos</span><span class="small muted">${newToday()}/${NEW_PER_DAY} novas hoje</span></div>
-      ${["A1", "A2", "B1"].map((lv) => `<p class="small"><b>${lv} · ${LV[lv].n}</b></p><div class="chips">${ALLDECKS.filter((d) => d.lv === lv).map((d) => { const cs = ALLCARDS.filter((c) => c.deck === d.id), known = cs.filter((c) => (S.cards[c.id] || {}).box >= 3).length; return `<button class="tog" type="button" data-deck="${d.id}" aria-pressed="${on.includes(d.id)}" title="${esc(d.sub)}">${esc(d.t)} · ${known}/${cs.length}</button>`; }).join("")}</div>`).join("")}
-    <span class="eyebrow">Cartões por caixa de revisão</span><div class="boxes">${boxes.map((n, i) => `<span>C${i}<br>${n}</span>`).join("")}</div></section>`;
+    <section class="card"><span class="eyebrow">Baralhos ativos</span><p class="small muted">Os baralhos "Essenciais" e "Alto uso" seguem a frequência real do italiano. Desative os que não quiser estudar agora.</p>
+      ${["A1", "A2", "B1"].map((lv) => `<p class="small"><b>${lv} · ${LV[lv].n}</b></p><div class="chips">${ALLDECKS.filter((d) => d.lv === lv).map((d) => { const cs = ALLCARDS.filter((c) => c.deck === d.id), known = cs.filter(isLearned).length; return `<button class="tog" type="button" data-deck="${d.id}" aria-pressed="${on.includes(d.id)}" title="${esc(d.sub)}">${esc(d.t)} · ${known}/${cs.length}</button>`; }).join("")}</div>`).join("")}</section>`;
   $$("[data-deck]", v).forEach((b) => (b.onclick = () => { let a = activeDecks().slice(); const id = b.dataset.deck; a = a.includes(id) ? a.filter((x) => x !== id) : a.concat(id); if (!a.length) return; S.decks = a; save(); route(); }));
-  const st = $("#study"); let i = 0, ok = 0;
+  $$("[data-mode]", v).forEach((b) => (b.onclick = () => { window._vocMode = b.dataset.mode; route(); }));
+  const paintProgress = () => { const n = pool.filter(isLearned).length; $("#lprog").innerHTML = `<div class="row"><b style="flex:1">${n.toLocaleString("pt-BR")} de ${pool.length.toLocaleString("pt-BR")} palavras aprendidas</b><span class="small muted">${pct(n / (pool.length || 1))}</span></div><div class="bar"><i style="width:${(n / (pool.length || 1)) * 100}%"></i></div>`; };
+  paintProgress();
+  const st = $("#study");
+  /* Fila contínua: começa pelas palavras mais usadas que você ainda não aprendeu e nunca acaba.
+     Errou: volta 3 cartões depois. Acertou e ainda não aprendeu: volta 7 cartões depois. */
+  const source = mode === "review" ? shuffle(pool.filter(isLearned)) : pool.filter((c) => !isLearned(c));
+  const q = source.slice(0, 8), used = new Set(q.map((c) => c.id));
+  let next = 8, done = 0, ok = 0;
+  const refill = () => { while (q.length < 8 && next < source.length) { const c = source[next++]; if (!used.has(c.id)) { used.add(c.id); q.push(c); } } };
+  const insertAt = (c, k) => q.splice(Math.min(k, q.length), 0, c);
+  function finish() { if (ok) touch(ok * 2); route(); }
   function show() {
-    if (!due.length) { st.innerHTML = `<section class="card"><h3>Nenhum cartão para hoje.</h3><p class="muted">Volte amanhã ou ative mais temas acima.</p></section>`; return; }
-    if (i >= due.length) { touch(ok * 2); st.innerHTML = `<section class="card"><h3>Sessão concluída: ${ok} de ${due.length}</h3><span class="pill-tag ok">${I("star")} +${ok * 2} XP</span><button class="btn" id="more" type="button">Nova sessão</button></section>`; $("#more").onclick = () => route(); return; }
-    const c = due[i]; let flipped = false;
-    st.innerHTML = `<div class="row"><span class="small muted" style="flex:1">Cartão ${i + 1} de ${due.length}</span>${playBtn('id="say"')}${playBtn('id="slow"', "0,7×", "slow")}</div>
+    refill();
+    if (!q.length) {
+      st.innerHTML = `<section class="card"><h3>${mode === "review" ? "Você ainda não tem palavras aprendidas." : "Você aprendeu todas as palavras dos baralhos ativos!"}</h3><p class="muted">${mode === "review" ? "Use o modo Aprender primeiro." : "Ative mais baralhos abaixo ou revise as aprendidas."}</p></section>`;
+      if (ok) touch(ok * 2);
+      return;
+    }
+    const c = q.shift(); let flipped = false;
+    const k0 = S.cards[c.id] || { box: 0 };
+    st.innerHTML = `<div class="row"><span class="small muted" style="flex:1">${done} respondidas · ${ok} acertos${mode === "learn" ? ` · ${"●".repeat(Math.min(k0.box || 0, LEARN))}${"○".repeat(Math.max(0, LEARN - (k0.box || 0)))}` : ""}</span>${playBtn('id="say"')}${playBtn('id="slow"', "0,7×", "slow")}</div>
       <div class="flash" id="card" role="button" tabindex="0" aria-label="Virar cartão"><div class="stack" style="justify-items:center"><div class="word">${esc(c.it)}</div>${c.pr ? `<div class="pron">${esc(c.pr)}</div>` : ""}<p class="muted" id="back">Toque para ver a tradução</p></div></div>
-      <div class="row" id="grade" hidden><button class="btn red" id="no" type="button" style="flex:1">Não sabia</button><button class="btn" id="yes" type="button" style="flex:1">Sabia</button></div>`;
+      <div class="row" id="grade" hidden><button class="btn red" id="no" type="button" style="flex:1">Não sabia</button><button class="btn" id="yes" type="button" style="flex:1">Sabia</button></div>
+      <button class="btn ghost sm" id="stop" type="button" style="justify-self:center">Parar por agora</button>`;
     const flip = () => { if (flipped) return; flipped = true; $("#back").outerHTML = `<b style="font-size:1.25rem">${esc(c.pt)}</b>`; $("#grade").hidden = false; };
     $("#card").onclick = flip; $("#card").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } };
     $("#say").onclick = (e) => say(c.it, "f", { btn: e.currentTarget }); $("#slow").onclick = (e) => say(c.it, "f", { btn: e.currentTarget, rate: 0.7 });
     setTimeout(() => say(c.it, "f", { btn: $("#say") }), 200);
-    const grade = (good) => { if (!S.cards[c.id]) S.newToday = { day: today(), n: newToday() + 1 }; const k = S.cards[c.id] || { box: 0 }; k.box = good ? Math.min(6, (k.box || 0) + 1) : 0; k.due = dayNum(today()) + (good ? INTERVALS[k.box] : 0); S.cards[c.id] = k; if (good) ok++; else due.push(c); save(); i++; show(); };
+    $("#stop").onclick = finish;
+    const grade = (good) => {
+      const k = S.cards[c.id] || { box: 0 };
+      if (good) { k.box = Math.min(6, (k.box || 0) + 1); ok++; } else k.box = 0;
+      S.cards[c.id] = k; done++; save(); paintProgress();
+      if (!good) insertAt(c, 3);
+      else if (mode === "learn" && k.box < LEARN) insertAt(c, 7);
+      if (done % 20 === 0) touch(0);
+      show();
+    };
     $("#yes").onclick = () => grade(true); $("#no").onclick = () => grade(false);
   }
   show();
