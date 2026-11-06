@@ -32,6 +32,7 @@ const P = {
   user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   sync:'<path d="M20 11a8 8 0 0 0-14.9-3M4 13a8 8 0 0 0 14.9 3"/><path d="M4 4v4h4M20 20v-4h-4"/>',
 };
+const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const I = (n, c = "") => `<svg class="icon ${c}" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
 
 /* ============================== ESTADO ============================== */
@@ -308,7 +309,7 @@ const VIEWS = {
   const tiles = [["vocaboli", "cards", "Vocabulário", `${due} cartões para hoje`, ""], ["pronuncia", "mic", "Pronúncia", "Ouça, repita e grave", "r"], ["ascolto", "head", "Escuta", `${AUDIOS.length} áudios`, ""], ["lettura", "open", "Leitura", `${READINGS.length} textos`, ""], ["scrittura", "pen", "Escrita", "Temas da prova", "r"], ["parlato", "chat", "Fala", "Conversa com cronômetro", ""]];
   v.innerHTML = `<div class="stack"><span class="eyebrow">Pratica</span><h1>Praticar</h1><p class="muted">Treine cada habilidade da prova separadamente.</p></div>
   <div class="tiles">${tiles.map(([h, ic, t, d, c]) => `<a class="tile ${c}" href="#${h}"><span class="ic">${I(ic)}</span><b>${t}</b><span>${d}</span></a>`).join("")}</div>
-  <section class="card"><h3>Usar sem internet</h3><p class="small muted">As lições já funcionam offline. Baixe também os áudios (cerca de 8 MB) para ouvir sem conexão. Melhor fazer isso no Wi-Fi.</p>
+  <section class="card" ${isNative ? "hidden" : ""}><h3>Usar sem internet</h3><p class="small muted">As lições já funcionam offline. Baixe também os áudios (cerca de 8 MB) para ouvir sem conexão. Melhor fazer isso no Wi-Fi.</p>
     <div class="row"><button class="btn sm" id="dl" type="button">Baixar áudios</button><span class="small muted" id="dlp"></span></div></section>`;
   $("#dl").onclick = async () => {
     const b = $("#dl"), p = $("#dlp"); b.disabled = true;
@@ -527,6 +528,7 @@ const VIEWS = {
    <a class="link-row" href="${OFFICIAL.base + encodeURIComponent("B1 Cittadinanza_Sillabo.pdf")}" target="_blank" rel="noopener">${I("open")}<span>Programa oficial (sillabo)</span>${I("ext")}</a>
    <a class="link-row" href="https://www.unistrapg.it/it/certificazioni-linguistiche" target="_blank" rel="noopener">${I("flag")}<span>CELI · Università per Stranieri di Perugia</span>${I("ext")}</a>
    <a class="link-row" href="https://plida.it" target="_blank" rel="noopener">${I("flag")}<span>PLIDA · Società Dante Alighieri</span>${I("ext")}</a></section>
+  ${isNative ? "" : `<a class="card" href="https://github.com/viniciusliniker1-spec/italiano-b1/releases/latest/download/Cittadino.apk" style="text-decoration:none;color:inherit;grid-template-columns:auto 1fr;align-items:center"><img src="./icons/icon-192.png" alt="" width="48" height="48" style="border-radius:12px"><div><b>Baixar o app para Android</b><p class="small muted">Arquivo Cittadino.apk. Depois de baixar, abra o arquivo e permita a instalação.</p></div></a>`}
   <p class="note">Áudios gerados com vozes italianas neurais (Piper TTS, código aberto).</p>`;
  },
 };
@@ -709,7 +711,7 @@ function runExam(v, e) {
 onAuthChange(() => { renderBar(); const h = (location.hash || "").slice(1).split("--")[0]; if (h === "conta" || h === "inicio" || h === "") route(); });
 initAuth(() => S, (m) => { S = Object.assign(blank(), m); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} if (!document.body.classList.contains("focus")) route(); else renderBar(); });
 route();
-if ("serviceWorker" in navigator && location.protocol !== "file:") window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+if ("serviceWorker" in navigator && location.protocol !== "file:" && !isNative) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 let installEvt = null;
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; $("#install").hidden = false; });
 $("#install").addEventListener("click", async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; $("#install").hidden = true; });

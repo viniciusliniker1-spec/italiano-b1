@@ -1,3 +1,7 @@
 node_modules/
 dist/
 .DS_Store
+
+# Chaves de assinatura nunca vão para o repositório
+*.jks
+*.keystore

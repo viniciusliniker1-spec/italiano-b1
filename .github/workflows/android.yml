@@ -1,0 +1,68 @@
+name: Gerar APK Android
+
+# A cada push na main: testa, monta o app web, empacota com o Capacitor e publica
+# o APK como "release". O link fixo para baixar a versão mais nova é:
+# https://github.com/<usuario>/<repositorio>/releases/latest/download/Cittadino.apk
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      - run: npx cap sync android
+      - name: Preparar a chave de assinatura (segredo do repositório)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/cittadino.jks"
+            echo "CITTADINO_KEYSTORE=$RUNNER_TEMP/cittadino.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Sem o segredo ANDROID_KEYSTORE_BASE64: o APK sai com a chave de depuração e as atualizações não instalam por cima."
+          fi
+      - name: Compilar o APK
+        working-directory: android
+        env:
+          CITTADINO_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon -PversionCode=${{ github.run_number }} -PversionName=1.${{ github.run_number }}
+          cp app/build/outputs/apk/release/app-release.apk ../Cittadino.apk
+      - name: Publicar o APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-v1.${{ github.run_number }}
+          name: Cittadino 1.${{ github.run_number }}
+          make_latest: true
+          body: |
+            App Android do Cittadino, gerado a partir do commit ${{ github.sha }}.
+
+            Para instalar: baixe o arquivo Cittadino.apk abaixo no celular, abra e permita a instalação.
+            As próximas versões instalam por cima desta, sem perder o progresso.
+          files: Cittadino.apk

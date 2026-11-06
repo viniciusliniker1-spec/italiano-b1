@@ -77,6 +77,26 @@ python3 scripts/gen-audio.py --voices PASTA_COM_AS_VOZES
 
 As vozes `it_IT-serena-high` e `it_IT-paola-medium` ficam em [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main/it/it_IT). O script só gera o que falta. O `npm test` avisa se alguma fala ficou sem áudio.
 
+## App Android (APK)
+
+O app também é empacotado como aplicativo Android com o [Capacitor](https://capacitorjs.com). Lições e áudios vão dentro do APK e funcionam sem internet.
+
+- **Baixar a versão mais nova:** https://github.com/viniciusliniker1-spec/italiano-b1/releases/latest/download/Cittadino.apk
+- A cada push na `main`, o workflow `.github/workflows/android.yml` gera um APK novo e o publica em **Releases**.
+- **Assinatura:** para as atualizações instalarem por cima sem apagar o progresso, todo APK precisa da mesma chave. A chave nunca vai para o repositório. Ela fica em dois segredos do GitHub (**Settings → Secrets and variables → Actions → Secrets**):
+  - `ANDROID_KEYSTORE_BASE64`: o arquivo `.jks` em base64;
+  - `ANDROID_KEYSTORE_PASSWORD`: a senha dele (alias `cittadino`).
+
+  Sem esses segredos, o APK sai com a chave de depuração. Ele instala normalmente, mas a próxima versão só instala depois de desinstalar a anterior.
+
+Para compilar no computador (precisa do Android SDK e do JDK 21):
+
+```bash
+npm run build && npx cap sync android
+cd android && ./gradlew assembleRelease
+# APK em android/app/build/outputs/apk/release/app-release.apk
+```
+
 ## Ativar o login (conta e progresso na nuvem)
 
 O login usa o [Supabase](https://supabase.com), que tem plano gratuito. Sem configuração, o app funciona normalmente e o progresso fica só no aparelho.
