@@ -1,4 +1,4 @@
-# Cittadinanza B1
+# Cittadino · Italiano B1
 
 App para aprender italiano **do zero ao nível B1** e passar no exame de língua exigido para a cidadania italiana (CILS, CELI, PLIDA ou Cert.IT).
 

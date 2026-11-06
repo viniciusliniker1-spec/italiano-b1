@@ -2,7 +2,7 @@
 // Páginas: rede primeiro (pega atualizações), cache se estiver offline.
 // Áudios: guardados inteiros na primeira vez que tocam (ou pelo botão "Baixar áudios").
 // Outros arquivos (JS, CSS, fontes, ícones): cache primeiro, atualizando em segundo plano.
-const CACHE = "italiano-b1-v2";
+const CACHE = "italiano-b1-v3";
 const AUDIO = "italiano-b1-audio-v1";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./audio/manifest.json"];
 

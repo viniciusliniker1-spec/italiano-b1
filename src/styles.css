@@ -49,7 +49,10 @@ p{margin:0}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:30}
 .appbar-in{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:10px;padding:10px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px))}
 .logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;margin-right:auto;min-width:0}
-.logo b{font-family:var(--f-display);font-size:1.2rem;white-space:nowrap}
+.logo .appicon{width:32px;height:32px;border-radius:9px;flex:none;box-shadow:0 0 0 1px var(--line)}
+.logo .brand{display:grid;line-height:1.05;min-width:0}
+.logo b{font-family:var(--f-display);font-size:1.3rem;white-space:nowrap}
+.logo small{font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase}
 .flag{display:inline-flex;width:30px;height:22px;border-radius:5px;overflow:hidden;flex:none;box-shadow:0 0 0 1px var(--line)}
 .flag i{flex:1}.flag i:nth-child(1){background:#008C45}.flag i:nth-child(2){background:#F4F5F0}.flag i:nth-child(3){background:#CD212A}
 .chip{display:inline-flex;align-items:center;gap:4px;font-weight:600;font-size:.9rem;padding:5px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-variant-numeric:tabular-nums}

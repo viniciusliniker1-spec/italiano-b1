@@ -593,7 +593,7 @@ VIEWS.conta = function (v) {
 /* ============================== BOAS-VINDAS ============================== */
 function welcome(v) {
   v.innerHTML = `<div class="welcome"><div class="bigflag" aria-hidden="true"><i></i><i><b>B1</b></i><i></i></div>
-  <div class="stack"><h1>Benvenuto!</h1><p class="muted">Vamos te levar do zero ao B1 para o exame de cidadania italiana. Por onde você quer começar?</p></div>
+  <div class="stack"><h1>Benvenuto in Cittadino!</h1><p class="muted">Vamos te levar do zero ao B1 para o exame de cidadania italiana. Por onde você quer começar?</p></div>
   <div class="stack">
    <button class="choice" data-lv="A1" type="button"><span class="eyebrow">Começar pelo A1</span><h3>Nunca estudei italiano</h3><span class="muted small">Começamos pela pronúncia e pelas primeiras frases.</span></button>
    <button class="choice" data-lv="A2" type="button"><span class="eyebrow">Começar pelo A2</span><h3>Sei o básico</h3><span class="muted small">Me apresento, conto até 100 e uso o presente.</span></button>
