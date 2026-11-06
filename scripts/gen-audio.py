@@ -12,7 +12,7 @@ Vozes (baixe de https://huggingface.co/rhasspy/piper-voices, pasta it/it_IT):
 
 Gera public/audio/<hash>.mp3 e public/audio/manifest.json. Só cria o que ainda não existe,
 então rodar de novo depois de mudar o conteúdo gera apenas as falas novas."""
-import argparse, hashlib, io, json, os, subprocess, sys, wave
+import argparse, hashlib, io, json, multiprocessing, os, subprocess, sys, wave
 from piper import PiperVoice, SynthesisConfig
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -54,28 +54,42 @@ def to_mp3(chunks, path):
             os.remove(f)
 
 
+_V, _CFG = None, None
+
+
+def _init(folder):
+    """Cada processo carrega as vozes uma vez."""
+    global _V, _CFG
+    _V = {k: PiperVoice.load(os.path.join(folder, v)) for k, v in VOICES.items()}
+    # Um pouco mais lento que o normal, para quem está aprendendo.
+    _CFG = {"f": SynthesisConfig(length_scale=1.1), "m": SynthesisConfig(length_scale=1.08)}
+
+
+def _work(job):
+    parts, path = job
+    to_mp3([(*synth(_V[p["voice"]], p["text"], _CFG[p["voice"]]), p["voice"]) for p in parts], path)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--voices", required=True, help="pasta com os arquivos .onnx das vozes")
+    ap.add_argument("--jobs", type=int, default=os.cpu_count() or 2, help="processos em paralelo")
     a = ap.parse_args()
     clips = json.loads(subprocess.run(["node", os.path.join(ROOT, "scripts", "audio-list.mjs")],
                                       check=True, capture_output=True, text=True).stdout)
-    voices = {k: PiperVoice.load(os.path.join(a.voices, v)) for k, v in VOICES.items()}
-    # Um pouco mais lento que o normal, para quem está aprendendo.
-    cfg = {"f": SynthesisConfig(length_scale=1.1), "m": SynthesisConfig(length_scale=1.08)}
     os.makedirs(OUT, exist_ok=True)
-    manifest, made = {}, 0
+    manifest, todo = {}, []
     for c in clips:
         name = hashlib.sha1(c["key"].encode()).hexdigest()[:12] + ".mp3"
         manifest[c["key"]] = name
-        path = os.path.join(OUT, name)
-        if os.path.exists(path):
-            continue
-        chunks = [(*synth(voices[p["voice"]], p["text"], cfg[p["voice"]]), p["voice"]) for p in c["parts"]]
-        to_mp3(chunks, path)
-        made += 1
-        if made % 50 == 0:
-            print(f"{made} áudios gerados…", flush=True)
+        if not os.path.exists(os.path.join(OUT, name)):
+            todo.append((c["parts"], os.path.join(OUT, name)))
+    made = 0
+    with multiprocessing.Pool(a.jobs, initializer=_init, initargs=(a.voices,)) as pool:
+        for _ in pool.imap_unordered(_work, todo, chunksize=8):
+            made += 1
+            if made % 200 == 0:
+                print(f"{made} de {len(todo)} áudios gerados…", flush=True)
     keep = set(manifest.values()) | {"manifest.json"}
     for f in os.listdir(OUT):
         if f not in keep:

@@ -2,6 +2,7 @@ import "./styles.css";
 import { UNITS, DECKS, AUDIOS, READINGS, WRITINGS, SPEAK } from "./content.js";
 import { EXAMS, OFFICIAL, SCORING, PRESENTAZIONE } from "./exams.js";
 import { PHRASES, PAIRS } from "./pronuncia.js";
+import { VOCAB } from "./vocab-data.js";
 import { keyOf, fullSentence } from "./audio-keys.js";
 import { authEnabled, initAuth, onAuthChange, currentUser, lastSyncAt, inRecovery, syncNow, schedulePush, signIn, signUp, sendReset, setNewPassword, signOut } from "./auth.js";
 
@@ -146,16 +147,39 @@ async function toggleRecord(btn, out) {
 }
 
 /* ============================== MÉTRICAS ============================== */
-const ALLCARDS = DECKS.flatMap((d) => d.w.map((w, i) => ({ id: d.id + i, deck: d.id, it: w[0], pt: w[1], pr: w[2] })));
+/* Baralhos: os temáticos (content.js) e os de frequência, com as ~5.000 palavras mais usadas do italiano
+   (Nuovo Vocabolario di Base). f1…f8 = fundamentais (A1/A2), u1…u12 = alto uso (B1). */
+const FREQ = [...new Set(VOCAB.map((v) => v[3]))].map((id) => {
+  const n = +id.slice(1);
+  return id[0] === "f" ? { id, lv: n <= 4 ? "A1" : "A2", t: `Essenciais ${n}`, sub: `palavras ${(n - 1) * 250 + 1}–${Math.min(n * 250, 1980)} das fundamentais` }
+                       : { id, lv: "B1", t: `Alto uso ${n}`, sub: `palavras ${(n - 1) * 250 + 1}–${n * 250} de alto uso` };
+});
+const ALLDECKS = [...DECKS.map((d) => ({ id: d.id, lv: d.lv, t: d.t, sub: "tema" })), ...FREQ];
+const ALLCARDS = [
+  ...DECKS.flatMap((d) => d.w.map((w, i) => ({ id: d.id + i, deck: d.id, it: w[0], pt: w[1], pr: w[2] }))),
+  ...VOCAB.map((v) => ({ id: "w:" + v[0], deck: v[3], it: v[0], pt: v[1], pr: v[2] })),
+];
+const NEW_PER_DAY = 15;
+/* Dicionário: palavras únicas, as do NVdB (em ordem de uso) primeiro e depois as dos temas. */
+const DICT = [...ALLCARDS.filter((c) => c.id.startsWith("w:")), ...ALLCARDS.filter((c) => !c.id.startsWith("w:"))].filter((c, i, a) => a.findIndex((x) => x.it === c.it) === i);
 const best = (id) => (S.lessons[id] || {}).best || 0;
 const lvProgress = (lv) => avg(UNITS.filter((u) => u.lv === lv && !u.extra).map((u) => best(u.id)));
 const startUnits = () => UNITS.filter((u) => RANK[u.lv] >= RANK[S.level || "A1"]);
 const nextUnit = () => startUnits().find((u) => !u.extra && best(u.id) < 0.8) || startUnits().find((u) => best(u.id) < 0.8) || UNITS[UNITS.length - 1];
 const stage = () => nextUnit().lv;
 const fitting = (list) => list.filter((x) => RANK[x.lv || "B1"] <= RANK[stage()]);
-const activeDecks = () => S.decks || DECKS.filter((d) => RANK[d.lv] <= RANK[S.level || "A1"]).map((d) => d.id);
+const activeDecks = () => (S.decks || ALLDECKS.filter((d) => RANK[d.lv] <= RANK[S.level || "A1"]).map((d) => d.id)).filter((id) => ALLDECKS.some((d) => d.id === id));
 const INTERVALS = [0, 1, 2, 4, 8, 16, 32];
-const dueCards = () => { const t = dayNum(today()), on = activeDecks(); return ALLCARDS.filter((c) => { const k = S.cards[c.id]; return on.includes(c.deck) && (!k || k.due <= t); }); };
+const newToday = () => (S.newToday && S.newToday.day === today() ? S.newToday.n : 0);
+/* Revisões do dia + no máximo 15 palavras novas por dia, na ordem dos baralhos (as mais usadas primeiro). */
+const dueCards = () => {
+  const t = dayNum(today()), on = new Set(activeDecks()), order = ALLDECKS.map((d) => d.id).filter((id) => on.has(id));
+  const review = ALLCARDS.filter((c) => on.has(c.deck) && S.cards[c.id] && S.cards[c.id].due <= t);
+  const fresh = [];
+  const room = Math.max(0, NEW_PER_DAY - newToday());
+  for (const id of order) { if (fresh.length >= room) break; for (const c of ALLCARDS) { if (c.deck === id && !S.cards[c.id]) { fresh.push(c); if (fresh.length >= room) break; } } }
+  return review.concat(fresh);
+};
 function skills() {
   const ex = S.exams.filter((x) => x.pts);
   const bestEx = (k) => (ex.length ? Math.max(...ex.map((x) => x.pts[k] || 0)) / 12 : null);
@@ -170,7 +194,7 @@ function skills() {
 
 /* ============================== MOLDURA ============================== */
 const NAV = [["inicio", "Início", "home"], ["lezioni", "Lições", "book"], ["pratica", "Praticar", "target"], ["simulado", "Simulado", "clip"], ["prova", "A prova", "flag"]];
-const SECTION = { inicio: "inicio", lezioni: "lezioni", lezione: "lezioni", conta: "inicio", pratica: "pratica", vocaboli: "pratica", pronuncia: "pratica", ascolto: "pratica", lettura: "pratica", scrittura: "pratica", parlato: "pratica", simulado: "simulado", esame: "simulado", ufficiale: "simulado", prova: "prova" };
+const SECTION = { inicio: "inicio", lezioni: "lezioni", lezione: "lezioni", conta: "inicio", pratica: "pratica", vocaboli: "pratica", dizionario: "pratica", pronuncia: "pratica", ascolto: "pratica", lettura: "pratica", scrittura: "pratica", parlato: "pratica", simulado: "simulado", esame: "simulado", ufficiale: "simulado", prova: "prova" };
 function renderBar() {
   const s = $("#streak"), x = $("#xp");
   if (s) s.innerHTML = I("fire") + (S.streak || 0);
@@ -306,7 +330,7 @@ const VIEWS = {
 
  pratica(v) {
   const due = dueCards().length;
-  const tiles = [["vocaboli", "cards", "Vocabulário", `${due} cartões para hoje`, ""], ["pronuncia", "mic", "Pronúncia", "Ouça, repita e grave", "r"], ["ascolto", "head", "Escuta", `${AUDIOS.length} áudios`, ""], ["lettura", "open", "Leitura", `${READINGS.length} textos`, ""], ["scrittura", "pen", "Escrita", "Temas da prova", "r"], ["parlato", "chat", "Fala", "Conversa com cronômetro", ""]];
+  const tiles = [["vocaboli", "cards", "Vocabulário", `${due} cartões para hoje`, ""], ["dizionario", "open", "Dicionário", `${DICT.length.toLocaleString("pt-BR")} palavras`, ""], ["pronuncia", "mic", "Pronúncia", "Ouça, repita e grave", "r"], ["ascolto", "head", "Escuta", `${AUDIOS.length} áudios`, ""], ["lettura", "open", "Leitura", `${READINGS.length} textos`, ""], ["scrittura", "pen", "Escrita", "Temas da prova", "r"], ["parlato", "chat", "Fala", "Conversa com cronômetro", ""]];
   v.innerHTML = `<div class="stack"><span class="eyebrow">Pratica</span><h1>Praticar</h1><p class="muted">Treine cada habilidade da prova separadamente.</p></div>
   <div class="tiles">${tiles.map(([h, ic, t, d, c]) => `<a class="tile ${c}" href="#${h}"><span class="ic">${I(ic)}</span><b>${t}</b><span>${d}</span></a>`).join("")}</div>
   <section class="card" ${isNative ? "hidden" : ""}><h3>Usar sem internet</h3><p class="small muted">As lições já funcionam offline. Baixe também os áudios (cerca de 8 MB) para ouvir sem conexão. Melhor fazer isso no Wi-Fi.</p>
@@ -327,12 +351,14 @@ const VIEWS = {
 
  vocaboli(v) {
   const on = activeDecks(), pool = ALLCARDS.filter((c) => on.includes(c.deck));
-  const due = shuffle(dueCards()).slice(0, 15);
+  const due = shuffle(dueCards()).slice(0, 30);
   const boxes = [0, 1, 2, 3, 4, 5, 6].map((b) => pool.filter((c) => ((S.cards[c.id] || {}).box || 0) === b).length);
   v.innerHTML = `${back("#pratica", "Praticar")}<div class="stack"><span class="eyebrow">Lessico</span><h1>Vocabulário</h1>
     <p class="muted">Ouça a palavra, tente lembrar o significado e toque no cartão. Se acertar, ele volta daqui a alguns dias. Se errar, volta hoje.</p></div>
     <section id="study" class="stack"></section>
-    <section class="card"><span class="eyebrow">Temas ativos</span><div class="chips">${DECKS.map((d) => `<button class="tog" type="button" data-deck="${d.id}" aria-pressed="${on.includes(d.id)}">${esc(d.t)} · ${d.lv}</button>`).join("")}</div>
+    <a class="tile" href="#dizionario"><span class="ic">${I("open")}</span><b>Dicionário</b><span>Busque entre ${DICT.length.toLocaleString("pt-BR")} palavras, com áudio e pronúncia</span></a>
+    <section class="card"><div class="row"><span class="eyebrow" style="flex:1">Baralhos ativos</span><span class="small muted">${newToday()}/${NEW_PER_DAY} novas hoje</span></div>
+      ${["A1", "A2", "B1"].map((lv) => `<p class="small"><b>${lv} · ${LV[lv].n}</b></p><div class="chips">${ALLDECKS.filter((d) => d.lv === lv).map((d) => { const cs = ALLCARDS.filter((c) => c.deck === d.id), known = cs.filter((c) => (S.cards[c.id] || {}).box >= 3).length; return `<button class="tog" type="button" data-deck="${d.id}" aria-pressed="${on.includes(d.id)}" title="${esc(d.sub)}">${esc(d.t)} · ${known}/${cs.length}</button>`; }).join("")}</div>`).join("")}
     <span class="eyebrow">Cartões por caixa de revisão</span><div class="boxes">${boxes.map((n, i) => `<span>C${i}<br>${n}</span>`).join("")}</div></section>`;
   $$("[data-deck]", v).forEach((b) => (b.onclick = () => { let a = activeDecks().slice(); const id = b.dataset.deck; a = a.includes(id) ? a.filter((x) => x !== id) : a.concat(id); if (!a.length) return; S.decks = a; save(); route(); }));
   const st = $("#study"); let i = 0, ok = 0;
@@ -347,7 +373,7 @@ const VIEWS = {
     $("#card").onclick = flip; $("#card").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } };
     $("#say").onclick = (e) => say(c.it, "f", { btn: e.currentTarget }); $("#slow").onclick = (e) => say(c.it, "f", { btn: e.currentTarget, rate: 0.7 });
     setTimeout(() => say(c.it, "f", { btn: $("#say") }), 200);
-    const grade = (good) => { const k = S.cards[c.id] || { box: 0 }; k.box = good ? Math.min(6, (k.box || 0) + 1) : 0; k.due = dayNum(today()) + (good ? INTERVALS[k.box] : 0); S.cards[c.id] = k; if (good) ok++; else due.push(c); save(); i++; show(); };
+    const grade = (good) => { if (!S.cards[c.id]) S.newToday = { day: today(), n: newToday() + 1 }; const k = S.cards[c.id] || { box: 0 }; k.box = good ? Math.min(6, (k.box || 0) + 1) : 0; k.due = dayNum(today()) + (good ? INTERVALS[k.box] : 0); S.cards[c.id] = k; if (good) ok++; else due.push(c); save(); i++; show(); };
     $("#yes").onclick = () => grade(true); $("#no").onclick = () => grade(false);
   }
   show();
@@ -529,8 +555,25 @@ const VIEWS = {
    <a class="link-row" href="https://www.unistrapg.it/it/certificazioni-linguistiche" target="_blank" rel="noopener">${I("flag")}<span>CELI · Università per Stranieri di Perugia</span>${I("ext")}</a>
    <a class="link-row" href="https://plida.it" target="_blank" rel="noopener">${I("flag")}<span>PLIDA · Società Dante Alighieri</span>${I("ext")}</a></section>
   ${isNative ? "" : `<a class="card" href="https://github.com/viniciusliniker1-spec/italiano-b1/releases/latest/download/Cittadino.apk" style="text-decoration:none;color:inherit;grid-template-columns:auto 1fr;align-items:center"><img src="./icons/icon-192.png" alt="" width="48" height="48" style="border-radius:12px"><div><b>Baixar o app para Android</b><p class="small muted">Arquivo Cittadino.apk. Depois de baixar, abra o arquivo e permita a instalação.</p></div></a>`}
-  <p class="note">Áudios gerados com vozes italianas neurais (Piper TTS, código aberto).</p>`;
+  <p class="note">Áudios gerados com vozes italianas neurais (Piper TTS, código aberto). Vocabulário baseado no <i>Nuovo Vocabolario di Base della lingua italiana</i> (T. De Mauro, I. Chiari, F. Ferrucci, 2016).</p>`;
  },
+};
+
+/* ============================== DICIONÁRIO ============================== */
+VIEWS.dizionario = function (v) {
+  const all = DICT;
+  v.innerHTML = `${back("#vocaboli", "Vocabulário")}<div class="stack"><span class="eyebrow">Dizionario</span><h1>Dicionário</h1>
+    <p class="muted">${all.length.toLocaleString("pt-BR")} palavras em ordem de uso: as mais comuns aparecem primeiro. Busque em italiano ou em português.</p></div>
+    <input class="text-in" id="q" type="search" placeholder="Ex.: casa, trabalho, permesso…" aria-label="Buscar palavra" autocomplete="off">
+    <section class="card" id="res"></section>`;
+  const res = $("#res");
+  const show = () => {
+    const q = strip($("#q").value.trim());
+    const hits = (q ? all.filter((c) => strip(c.it).includes(q) || strip(c.pt).includes(q)).sort((a, b) => (strip(a.it).startsWith(q) ? 0 : 1) - (strip(b.it).startsWith(q) ? 0 : 1)) : all).slice(0, 60);
+    res.innerHTML = hits.length ? hits.map((c) => `<div class="phrase"><div class="row"><div style="flex:1;min-width:0"><p class="it">${esc(c.it)}</p><p class="pron">${esc(c.pr || "")}</p><p class="small muted">${esc(c.pt)}</p></div>${playBtn(`data-w="${esc(c.it)}"`, "")}</div></div>`).join("") + (q ? "" : `<p class="note">Mostrando as 60 primeiras. Digite para buscar.</p>`) : `<p class="muted">Nenhuma palavra encontrada.</p>`;
+  };
+  $("#q").oninput = show; show();
+  res.onclick = (e) => { const b = e.target.closest("[data-w]"); if (b) say(b.dataset.w, "f", { btn: b }); };
 };
 
 /* ============================== CONTA ============================== */

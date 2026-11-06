@@ -10,7 +10,7 @@ App para aprender italiano **do zero ao nível B1** e passar no exame de língua
 - **Lições passo a passo**: uma pergunta por vez, com correção na hora e a frase completa em áudio.
 - **Áudio com voz italiana nativa** em todas as frases (454 falas), gravado com vozes neurais do [Piper TTS](https://github.com/rhasspy/piper). Funciona em qualquer celular e também offline.
 - **Pronúncia**: pronúncia figurada nos cartões e nas frases (ex.: `buon-DJOR-no`), pares de consoantes dobradas e prática com microfone. O app reconhece a sua fala e mostra quais palavras entendeu.
-- **Vocabulário** com repetição espaçada: 9 temas e 122 cartões.
+- **Vocabulário com 5.000 palavras**: as cerca de 4.900 palavras mais usadas do italiano (as fundamentais e as de alto uso do *Nuovo Vocabolario di Base*), mais 9 baralhos temáticos. Cada palavra tem tradução, pronúncia figurada e áudio. A repetição espaçada apresenta 15 palavras novas por dia, mais as revisões, e há um **Dicionário** com busca em italiano e português.
 - **Simulados no formato oficial do CILS B1 Cittadinanza**: escuta (6 diálogos + 12 vero/falso), leitura (12 vero/falso + texto para completar), escrita (80 a 120 palavras) e fala, com os tempos e a pontuação oficiais.
 - **Prova-modelo oficial**: links para o caderno, o áudio e o gabarito publicados pela Università per Stranieri di Siena, e uma folha de respostas que corrige com o gabarito oficial.
 - **Instalável (PWA)** e com tema claro e escuro.
@@ -65,6 +65,13 @@ tests/                testes de integridade do conteúdo
 ```
 
 Para acrescentar uma lição, adicione um objeto em `UNITS` dentro de `src/content.js` com `id`, `lv` (A1, A2 ou B1), `t` (título), `e` (explicação em HTML) e `q` (perguntas). O `npm test` avisa se alguma resposta estiver errada ou faltando.
+
+## Vocabulário
+
+A lista vem do **Nuovo Vocabolario di Base della lingua italiana** (Tullio De Mauro, Isabella Chiari e Francesca Ferrucci, 2016), que o próprio programa oficial do B1 Cittadinanza usa como referência. A versão em texto é de [pettarin/nvdb](https://github.com/pettarin/nvdb) (CC BY 4.0).
+
+- **Tradução:** `data/nvdb-pt.tsv` traz palavra, nível (FO = fundamental, AU = alto uso) e tradução, em ordem de frequência. Ficaram de fora os palavrões que a lista oficial inclui.
+- **Pronúncia figurada:** é gerada a partir da fonética do italiano (espeak-ng). Para regenerar `src/vocab-data.js`, rode `python3 scripts/build-vocab.py --voice PASTA/it_IT-serena-high.onnx`.
 
 ## Gerar os áudios
 

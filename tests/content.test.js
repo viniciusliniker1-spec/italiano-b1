@@ -7,6 +7,7 @@ import { UNITS, DECKS, AUDIOS, READINGS, WRITINGS, SPEAK } from "../src/content.
 import { EXAMS, OFFICIAL, SCORING } from "../src/exams.js";
 import { PHRASES } from "../src/pronuncia.js";
 import { allClips } from "../src/audio-keys.js";
+import { VOCAB } from "../src/vocab-data.js";
 
 const LEVELS = ["A1", "A2", "B1"];
 
@@ -37,6 +38,18 @@ test("vocabulário com pronúncia", () => {
     assert.ok(LEVELS.includes(d.lv));
     for (const w of d.w) { assert.equal(w.length, 3, `${d.id}: cartão incompleto ${w[0]}`); assert.match(w[2], /[A-ZÀ-Ý]/, `${w[0]}: sílaba forte não marcada`); }
   }
+});
+
+test("vocabulário de frequência (NVdB): milhares de palavras com tradução e pronúncia", () => {
+  assert.ok(VOCAB.length >= 4500, `só ${VOCAB.length} palavras`);
+  assert.equal(new Set(VOCAB.map((v) => v[0])).size, VOCAB.length, "palavra repetida");
+  for (const [it, pt, pr, deck] of VOCAB) {
+    assert.ok(it && pt && pr, `item incompleto: ${it}`);
+    assert.match(pr, /[A-ZÀ-Ý]/, `${it}: sílaba forte não marcada (${pr})`);
+    assert.match(deck, /^[fu]\d+$/);
+  }
+  const banned = ["cazzo", "merda", "vaffanculo", "puttana", "stronzo"];
+  assert.ok(!VOCAB.some((v) => banned.includes(v[0])), "palavrão no vocabulário");
 });
 
 test("escuta, leitura, escrita, fala e pronúncia", () => {
