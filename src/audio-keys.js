@@ -50,7 +50,7 @@ export function allClips() {
   for (const p of PAIRS) { one(p[0]); one(p[2]); }
   for (const q of PRESENTAZIONE) one(q, "m");
   for (const e of EXAMS) {
-    e.a1.forEach((it, i) => add(`d|${e.id}-a1-${i}`, dialogParts(it.d.join("\n"))));
+    e.a1.forEach((it, i) => add("d|" + (it.k || `${e.id}-a1-${i}`), dialogParts(it.d.join("\n"))));
     e.a2.forEach((it) => one(it.tx, it.v));
     e.o.forEach((t) => one(t, "m"));
   }

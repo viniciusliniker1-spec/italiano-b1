@@ -127,3 +127,19 @@ export const EXAMS = [
   o: ["Preferisci fare la spesa al supermercato o al mercato? Perché?","Com'è la scuola nel tuo Paese rispetto a quella italiana?","Che cosa fai nel tempo libero? E nel fine settimana?","Quali sono le difficoltà di un cittadino straniero appena arrivato in Italia?"],
  },
 ];
+
+/* Edições 3 a 20: montadas a partir do banco de itens originais (bank.js), sempre com
+   6 diálogos, 2 textos de rádio (12 vero/falso), 1 leitura (12 vero/falso), 1 texto
+   para completar (6 lacunas), 2 temas de escrita e 4 temas orais. */
+import { DIALOGHI, MONOLOGHI, LETTURE, CLOZE, SCRITTURE, ORALI } from "./bank.js";
+for (let k = 0; k < 18; k++) {
+  EXAMS.push({
+    id: "sim" + (k + 3), t: "Simulado " + (k + 3),
+    a1: Array.from({ length: 6 }, (_, j) => { const n = (k * 6 + j * 5) % DIALOGHI.length; const x = DIALOGHI[n]; return { k: "b" + n, d: x.d, s: x.s, o: x.o, a: 0 }; }),
+    a2: [MONOLOGHI[(2 * k) % MONOLOGHI.length], MONOLOGHI[(2 * k + 1) % MONOLOGHI.length]],
+    l1: LETTURE[k % LETTURE.length],
+    l2: CLOZE[(k + 2) % CLOZE.length],
+    w: [SCRITTURE[k % SCRITTURE.length], SCRITTURE[(k + 3) % SCRITTURE.length]],
+    o: Array.from({ length: 4 }, (_, j) => ORALI[(4 * k + j) % ORALI.length]),
+  });
+}

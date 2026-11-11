@@ -239,3 +239,13 @@ ul.clean{margin:0;padding-left:20px;display:grid;gap:6px}
 
 @media (max-width:420px){.tiles{grid-template-columns:repeat(2,1fr)}.skill{grid-template-columns:80px 1fr 46px}.hero{padding:18px 16px 18px 22px}.ring{width:72px;height:72px}.hero h1{font-size:1.85rem}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.bigflag{transform:none}}
+
+/* simulados em grade */
+.exam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.exam-card{display:grid;gap:4px;justify-items:center;text-align:center;padding:14px 8px;border-radius:16px;background:var(--surface);border:2px solid var(--line);box-shadow:0 3px 0 var(--line);text-decoration:none;color:inherit}
+.exam-card .num{font-family:var(--f-display);font-size:1.8rem;font-weight:700;color:var(--verde-ink)}
+.exam-card:hover{border-color:var(--verde)}
+.exam-card.locked{opacity:.65}.exam-card.locked .num{color:var(--muted)}
+.exam-card .icon{width:14px;height:14px;vertical-align:-2px}
+.pill-tag .icon{width:13px;height:13px}
+.premium-cta{text-decoration:none;color:inherit;background:linear-gradient(120deg,var(--verde-soft),var(--rosso-soft));border-color:transparent}

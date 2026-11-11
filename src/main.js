@@ -4,6 +4,9 @@ import { EXAMS, OFFICIAL, SCORING, PRESENTAZIONE } from "./exams.js";
 import { PHRASES, PAIRS } from "./pronuncia.js";
 import { VOCAB } from "./vocab-data.js";
 import { keyOf, fullSentence } from "./audio-keys.js";
+import { PAYWALL, PLANS } from "./config.js";
+import { DIALOGHI } from "./bank.js";
+import { hasPremium, loadEntitlement } from "./auth.js";
 import { authEnabled, initAuth, onAuthChange, currentUser, lastSyncAt, inRecovery, syncNow, schedulePush, signIn, signUp, sendReset, setNewPassword, signOut } from "./auth.js";
 
 /* ============================== ÍCONES ============================== */
@@ -172,7 +175,7 @@ const nextUnit = () => startUnits().find((u) => !u.extra && best(u.id) < 0.8) ||
 const stage = () => nextUnit().lv;
 const fitting = (list) => list.filter((x) => RANK[x.lv || "B1"] <= RANK[stage()]);
 /* Por padrão: todos os baralhos de frequência (sem limite) e os temáticos até o nível escolhido. */
-const activeDecks = () => (S.decks || ALLDECKS.filter((d) => FREQ.includes(d) || RANK[d.lv] <= RANK[S.level || "A1"]).map((d) => d.id)).filter((id) => ALLDECKS.some((d) => d.id === id));
+const activeDecks = () => (S.decks || ALLDECKS.filter((d) => FREQ.includes(d) || RANK[d.lv] <= RANK[S.level || "A1"]).map((d) => d.id)).filter((id) => ALLDECKS.some((d) => d.id === id) && !lockedDeck(id));
 const learnedCount = () => { const on = new Set(activeDecks()); return ALLCARDS.filter((c) => on.has(c.deck) && isLearned(c)).length; };
 function skills() {
   const ex = S.exams.filter((x) => x.pts);
@@ -188,7 +191,7 @@ function skills() {
 
 /* ============================== MOLDURA ============================== */
 const NAV = [["inicio", "Início", "home"], ["lezioni", "Lições", "book"], ["pratica", "Praticar", "target"], ["simulado", "Simulado", "clip"], ["prova", "A prova", "flag"]];
-const SECTION = { inicio: "inicio", lezioni: "lezioni", lezione: "lezioni", conta: "inicio", pratica: "pratica", vocaboli: "pratica", dizionario: "pratica", pronuncia: "pratica", ascolto: "pratica", lettura: "pratica", scrittura: "pratica", parlato: "pratica", simulado: "simulado", esame: "simulado", ufficiale: "simulado", prova: "prova" };
+const SECTION = { inicio: "inicio", lezioni: "lezioni", lezione: "lezioni", conta: "inicio", premium: "inicio", pratica: "pratica", vocaboli: "pratica", dizionario: "pratica", pronuncia: "pratica", ascolto: "pratica", lettura: "pratica", scrittura: "pratica", parlato: "pratica", simulado: "simulado", esame: "simulado", ufficiale: "simulado", prova: "prova" };
 function renderBar() {
   const s = $("#streak"), x = $("#xp");
   if (s) s.innerHTML = I("fire") + (S.streak || 0);
@@ -203,6 +206,9 @@ function route() {
   const sec = SECTION[key] || "inicio";
   $("#nav").innerHTML = NAV.map(([k, l, ic]) => `<a href="#${k}" ${k === sec ? 'aria-current="page"' : ""}><span class="pill">${I(ic)}</span>${l}</a>`).join("");
   const v = $("#view"); v.innerHTML = "";
+  const blocked = (key === "lezione" && UNITS.find((u) => u.id === arg) && lockedUnit(UNITS.find((u) => u.id === arg))) ||
+    (key === "esame" && lockedExam(arg)) || (key === "ascolto" && /^b\d+$/.test(arg || "") && lockedDialog(+arg.slice(1)));
+  if (blocked) { VIEWS.premium(v); renderBar(); return; }
   VIEWS[key](v, arg);
   renderBar();
 }
@@ -283,6 +289,7 @@ const VIEWS = {
   <section class="hero"><div class="stack"><span class="eyebrow">${S.streak > 1 ? S.streak + " dias seguidos" : "Seu italiano de hoje"}</span><h1>${hi}</h1>
     <p class="muted">${todayXP() >= GOAL ? "Meta do dia cumprida. Bravissimo!" : `Faltam ${GOAL - todayXP()} XP para a meta de hoje.`}</p></div>${ring(todayXP(), GOAL)}</section>
   ${authEnabled && !currentUser() ? `<a class="card" href="#conta" style="text-decoration:none;color:inherit;grid-template-columns:auto 1fr;align-items:center"><span class="avatar big" style="background:var(--rosso)">${I("user")}</span><div><b>Crie sua conta grátis</b><p class="small muted">Salve o progresso e continue em qualquer celular ou computador.</p></div></a>` : ""}
+  ${PAYWALL && !hasPremium() ? `<a class="card premium-cta" href="#premium"><b>Cittadino Premium</b><span class="small">Libere os 20 simulados, todas as lições e as 5.000 palavras.</span></a>` : ""}
   <a class="cta" href="#lezione--${nu.id}"><span class="eyebrow">Continuar · ${nu.lv} ${LV[nu.lv].n}</span><h2>${esc(nu.t)}</h2><div class="bar"><i style="width:${pct(best(nu.id))}"></i></div><span class="go">${I("play")} Começar lição</span></a>
   <div class="section-title"><h2>Il tuo percorso</h2><span class="small muted">${pct(lvProgress(view))}</span></div>
   <div class="seg" role="group" aria-label="Etapa">${["A1", "A2", "B1"].map((l) => `<button type="button" data-lv="${l}" aria-pressed="${l === view}">${l} · ${LV[l].n}</button>`).join("")}</div>
@@ -304,7 +311,7 @@ const VIEWS = {
  lezioni(v) {
   v.innerHTML = `<div class="stack"><span class="eyebrow">Grammatica</span><h1>Lições</h1><p class="muted">${UNITS.length} unidades do zero ao B1. Cada uma tem explicação em português, áudio e 6 exercícios.</p></div>
   ${["A1", "A2", "B1"].map((lv) => `<section class="card"><div class="row"><h3 style="flex:1">${lv} · ${LV[lv].n}</h3><span class="pill-tag">${pct(lvProgress(lv))}</span></div><p class="small muted">${LV[lv].d}</p>
-    <div class="path">${UNITS.filter((u) => u.lv === lv).map((u) => { const b = best(u.id); return `<a class="node ${b >= 0.8 ? "done" : u === nextUnit() ? "now" : ""}" href="#lezione--${u.id}" style="margin-left:0"><span class="dot">${b >= 0.8 ? I("check") : UNITS.indexOf(u) + 1}</span><div><b>${esc(u.t)}</b><span>${u.extra ? "Extra · não cai no B1 Cittadinanza" : b ? "Melhor: " + pct(b) : "Não iniciada"}</span></div></a>`; }).join("")}</div></section>`).join("")}`;
+    <div class="path">${UNITS.filter((u) => u.lv === lv).map((u) => { const b = best(u.id); return `<a class="node ${b >= 0.8 ? "done" : u === nextUnit() ? "now" : ""}" href="#lezione--${u.id}" style="margin-left:0"><span class="dot">${b >= 0.8 ? I("check") : UNITS.indexOf(u) + 1}</span><div><b>${esc(u.t)}</b><span>${u.extra ? "Extra · não cai no B1 Cittadinanza" : b ? "Melhor: " + pct(b) : "Não iniciada"}</span></div>${lockIcon(lockedUnit(u))}</a>`; }).join("")}</div></section>`).join("")}`;
  },
 
  lezione(v, id) {
@@ -435,10 +442,12 @@ const VIEWS = {
  },
 
  ascolto(v, arg) {
-  const a = AUDIOS.find((x) => x.id === arg);
+  const bn = /^b\d+$/.test(arg || "") ? +arg.slice(1) : -1, bd = DIALOGHI[bn];
+  const a = AUDIOS.find((x) => x.id === arg) || (bd && { id: arg, lv: "B1", lvl: "Diálogo", t: bd.t, tx: bd.d.join("\n"), q: [{ s: bd.s + "…", o: bd.o, a: 0 }] });
   if (!a) {
     v.innerHTML = `${back("#pratica", "Praticar")}<div class="stack"><span class="eyebrow">Ascolto</span><h1>Escuta</h1><p class="muted">Ouça sem ler e depois responda. Na prova, cada áudio toca duas vezes.</p></div>
     ${["A1", "B1"].map((lv) => `<section class="card"><h3>${lv} · ${LV[lv].n}</h3>${AUDIOS.filter((x) => x.lv === lv).map((x) => `<a class="link-row" href="#ascolto--${x.id}">${I("head")}<div><b>${esc(x.t)}</b><br><span class="small muted">${x.lvl}</span></div>${S.audio[x.id] != null ? `<span class="pill-tag ${S.audio[x.id] >= 0.67 ? "ok" : ""}">${pct(S.audio[x.id])}</span>` : ""}</a>`).join("")}</section>`).join("")}
+    <section class="card"><h3>Diálogos do dia a dia · ${DIALOGHI.length}</h3><p class="small muted">Situações reais na Itália, no formato da prova: ouça e escolha a resposta.</p>${DIALOGHI.map((x, n) => `<a class="link-row" href="#ascolto--b${n}">${I("chat")}<div><b>${esc(x.t)}</b></div>${lockIcon(lockedDialog(n))}${S.audio["b" + n] != null ? `<span class="pill-tag ${S.audio["b" + n] >= 1 ? "ok" : ""}">${pct(S.audio["b" + n])}</span>` : ""}</a>`).join("")}</section>
     <a class="tile" href="#simulado"><span class="ic">${I("clip")}</span><b>Escuta no formato da prova</b><span>Nos simulados: 6 diálogos e 2 textos com vero/falso</span></a>`;
     return;
   }
@@ -520,7 +529,8 @@ const VIEWS = {
     <div class="part"><b>Escrita · 40 min</b><span class="pts">12 pts</span><span>1 tema à escolha entre 2, de 80 a 120 palavras</span></div>
     <div class="part"><b>Fala · cerca de 5 min</b><span class="pts">12 pts</span><span>Apresentação pessoal e conversa sobre 1 tema</span></div></div>
     <p class="note">Se você não passar em uma das partes, refaz a prova inteira: no B1 Cittadinanza não dá para aproveitar a nota das partes aprovadas.</p></section>
-  ${EXAMS.map((e) => `<a class="cta" href="#esame--${e.id}" style="background:${e.id === "sim1" ? "var(--verde)" : "var(--rosso)"};box-shadow:0 4px 0 ${e.id === "sim1" ? "var(--verde-ink)" : "var(--rosso-ink)"}"><span class="eyebrow">Prova completa · cerca de 2 horas</span><h2>${e.t}</h2><span class="go">${I("play")} Começar</span></a>`).join("")}
+  <div class="section-title"><h2>${EXAMS.length} edições</h2><span class="small muted">cerca de 2 horas cada</span></div>
+  <div class="exam-grid">${EXAMS.map((e, i) => { const done = S.exams.filter((x) => x.t === e.t && x.pts), bestTot = done.length ? Math.max(...done.map((x) => x.pts.a + x.pts.l + x.pts.w + x.pts.o)) : null; return `<a class="exam-card ${lockedExam(e.id) ? "locked" : ""}" href="#esame--${e.id}"><span class="num">${i + 1}</span><span class="small">${lockedExam(e.id) ? I("lock") + " Premium" : bestTot != null ? "Melhor: " + fmt(bestTot) + "/48" : "Não feito"}</span></a>`; }).join("")}</div>
   <a class="tile" href="#ufficiale"><span class="ic">${I("flag")}</span><b>Prova oficial da CILS</b><span>Abra o caderno e o áudio oficiais e corrija aqui com o gabarito oficial</span></a>
   ${hist.length ? `<section class="card"><h3>Últimos resultados</h3>${hist.map((x) => `<div class="score-row"><span>${esc(x.date)} · ${esc(x.t || "")}</span><span class="small">E ${fmt(x.pts.a)} · L ${fmt(x.pts.l)} · S ${fmt(x.pts.w)} · O ${fmt(x.pts.o)}</span></div>`).join("")}</section>` : ""}`;
  },
@@ -593,6 +603,33 @@ VIEWS.dizionario = function (v) {
   };
   $("#q").oninput = show; show();
   res.onclick = (e) => { const b = e.target.closest("[data-w]"); if (b) say(b.dataset.w, "f", { btn: b }); };
+};
+
+
+/* ============================== ASSINATURA ============================== */
+const unlocked = () => !PAYWALL || hasPremium();
+/* O que o plano grátis inclui. */
+const FREE_EXAMS = ["sim1", "sim2"], FREE_DECKS = ["f1", "f2", "pw", "nu", "fa", "cb"], FREE_DIALOGS = 6;
+const lockedUnit = (u) => !unlocked() && u.lv !== "A1";
+const lockedExam = (id) => !unlocked() && !FREE_EXAMS.includes(id);
+const lockedDialog = (n) => !unlocked() && n >= FREE_DIALOGS;
+const lockedDeck = (id) => !unlocked() && !FREE_DECKS.includes(id);
+const lockIcon = (on) => (on ? `<span class="pill-tag">${I("lock")} Premium</span>` : "");
+
+VIEWS.premium = function (v) {
+  const me = currentUser();
+  const perks = ["Todas as 26 lições, do A1 ao B1", "20 simulados completos no formato oficial do CILS B1 Cittadinanza", "Quase 5.000 palavras com áudio e pronúncia", `${DIALOGHI.length + AUDIOS.length} diálogos e textos para treinar a escuta`, "Progresso salvo na nuvem, em qualquer aparelho"];
+  v.innerHTML = `${back("#inicio", "Início")}
+  <section class="hero" style="grid-template-columns:1fr"><span class="eyebrow">Cittadino Premium</span><h1>Prepare-se para passar no B1</h1><p class="muted">Tudo o que você precisa para a prova de cidadania, em um só lugar.</p></section>
+  <section class="card"><ul class="clean">${perks.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></section>
+  ${!PAYWALL ? `<p class="banner ok">Por enquanto todo o conteúdo está liberado, de graça.</p>` :
+    hasPremium() ? `<p class="banner ok">Sua assinatura está ativa. Obrigado!</p>` :
+    isNative ? `<p class="banner">Para assinar, acesse o Cittadino pelo navegador e entre com a mesma conta. A assinatura vale aqui também.</p>` :
+    !me ? `<a class="btn block" href="#conta">Entre ou crie sua conta para assinar</a>` :
+    `<div class="stack">${PLANS.map((p) => `<a class="choice" href="${p.link ? esc(p.link + (p.link.includes("?") ? "&" : "?") + "client_reference_id=" + encodeURIComponent(me.id) + "&prefilled_email=" + encodeURIComponent(me.email || "")) : "#premium"}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><span class="eyebrow">${esc(p.nome)}${p.nota ? " · " + esc(p.nota) : ""}</span><h3>${esc(p.preco)}</h3><span class="small muted">Pagamento seguro pelo Stripe. Cancele quando quiser.</span></a>`).join("")}
+     <button class="btn ghost" id="recheck" type="button">Já paguei: atualizar minha assinatura</button></div>`}
+  <p class="note">O plano grátis inclui o nível A1, 2 simulados, as 500 palavras mais usadas e ${FREE_DIALOGS} diálogos.</p>`;
+  if ($("#recheck")) $("#recheck").onclick = async () => { $("#recheck").disabled = true; await loadEntitlement(); route(); };
 };
 
 /* ============================== CONTA ============================== */
@@ -729,7 +766,7 @@ function runExam(v, e) {
     // restaura escolhas já feitas
     const restore = (g, arr) => arr.forEach((k, i) => { if (k == null) return; const b = $(`.opt[data-g="${g}"][data-i="${i}"][data-k="${k}"]`, v); if (b) b.classList.add("sel"); });
     restore("a1", A.a1); restore("a2-0", A.a2[0]); restore("a2-1", A.a2[1]); restore("l1", A.l1); restore("l2", A.l2);
-    $$("[data-pa]", v).forEach((b) => (b.onclick = () => { if (b.disabled) return; const i = +b.dataset.pa; playLimited(b, "a" + i, () => sayDialog(`${e.id}-a1-${i}`, e.a1[i].d.join("\n"), { btn: b })); }));
+    $$("[data-pa]", v).forEach((b) => (b.onclick = () => { if (b.disabled) return; const i = +b.dataset.pa; playLimited(b, "a" + i, () => sayDialog(e.a1[i].k || `${e.id}-a1-${i}`, e.a1[i].d.join("\n"), { btn: b })); }));
     $$("[data-pb]", v).forEach((b) => (b.onclick = () => { if (b.disabled) return; const j = +b.dataset.pb; playLimited(b, "b" + j, () => say(e.a2[j].tx, e.a2[j].v, { btn: b })); }));
     $$("[data-q]", v).forEach((b) => (b.onclick = () => say(PRESENTAZIONE[+b.dataset.q], "m", { btn: b })));
     $$("[data-o]", v).forEach((b) => (b.onclick = () => say(e.o[+b.dataset.o], "m", { btn: b })));

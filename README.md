@@ -121,6 +121,31 @@ O login usa o [Supabase](https://supabase.com), que tem plano gratuito. Sem conf
 
 O botão **Entrar** aparece no topo do app. A pessoa cria a conta com nome, e-mail e senha e confirma pelo e-mail. A recuperação de senha também é por e-mail. O progresso do aparelho é somado ao da conta, sem perder nada.
 
+## Lançamento com assinatura
+
+O app já vem com plano grátis e Premium. Enquanto `VITE_PAYWALL` não for `1`, tudo fica liberado.
+
+- **Grátis:** nível A1, simulados 1 e 2, as 500 palavras mais usadas e 6 diálogos.
+- **Premium:** todo o resto.
+
+Para ativar:
+
+1. **Login:** siga "Ativar o login" acima.
+2. **Tabela de assinaturas:** no SQL Editor do Supabase, rode `supabase/migrations/002_subscriptions.sql`.
+3. **Stripe:** crie dois produtos recorrentes (mensal e anual) e um **Payment Link** para cada um.
+4. **Webhook:**
+   - Publique a função com `supabase functions deploy stripe-webhook --no-verify-jwt`.
+   - Cadastre os segredos `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET`.
+   - No Stripe, aponte um webhook para a URL da função, com os eventos `checkout.session.completed` e `customer.subscription.*`.
+5. **Variáveis no GitHub** (Settings → Secrets and variables → Actions → Variables):
+   - `VITE_PAYWALL=1`
+   - `VITE_STRIPE_LINK_MONTHLY` e `VITE_STRIPE_LINK_YEARLY`: os links do passo 3;
+   - opcionais: `VITE_PRICE_MONTHLY` e `VITE_PRICE_YEARLY`.
+
+O app abre o link com `client_reference_id` igual ao id do usuário, e o webhook grava a assinatura dele.
+
+**Play Store:** no app publicado lá, assinaturas digitais precisam usar o Google Play Billing. Por isso, no APK, o botão de assinar é substituído por um aviso para assinar pelo site.
+
 ## Próximos passos
 
 - **Correção de textos por IA**: precisa de um pequeno servidor (por exemplo, um Cloudflare Worker) que guarde a chave da IA fora do app, como o Professor Noah do Bibliolingo.

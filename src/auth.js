@@ -11,6 +11,15 @@ export const onAuthChange = (f) => listeners.push(f);
 export const currentUser = () => user;
 export const lastSyncAt = () => lastSync;
 export const inRecovery = () => recovery;
+let premium = false;
+export const hasPremium = () => premium;
+/* Lê a assinatura do usuário (tabela subscriptions, gravada pelo webhook do Stripe). */
+export async function loadEntitlement() {
+  const c = await client(); if (!c || !user) { premium = false; return; }
+  const { data } = await c.from("subscriptions").select("status,current_period_end").eq("user_id", user.id).maybeSingle();
+  premium = !!data && ["active", "trialing"].includes(data.status) && (!data.current_period_end || new Date(data.current_period_end) > new Date());
+  emit();
+}
 
 async function client() {
   if (!authEnabled) return null;
@@ -57,7 +66,8 @@ export async function initAuth(get, set) {
   c.auth.onAuthStateChange((event, session) => {
     user = session ? session.user : null;
     if (event === "PASSWORD_RECOVERY") recovery = true;
-    if (event === "SIGNED_IN" || event === "INITIAL_SESSION") { if (user) syncNow(); }
+    if (event === "SIGNED_IN" || event === "INITIAL_SESSION") { if (user) { syncNow(); loadEntitlement(); } }
+    if (event === "SIGNED_OUT") premium = false;
     if (event === "SIGNED_OUT") lastSync = null;
     emit();
   });
