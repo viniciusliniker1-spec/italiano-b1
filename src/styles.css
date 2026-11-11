@@ -249,3 +249,10 @@ ul.clean{margin:0;padding-left:20px;display:grid;gap:6px}
 .exam-card .icon{width:14px;height:14px;vertical-align:-2px}
 .pill-tag .icon{width:13px;height:13px}
 .premium-cta{text-decoration:none;color:inherit;background:linear-gradient(120deg,var(--verde-soft),var(--rosso-soft));border-color:transparent}
+
+/* acabamento: foco visível e toque confortável nos cartões de simulado e diálogo */
+.exam-card:focus-visible,.link-row:focus-visible{outline:3px solid var(--verde);outline-offset:2px}
+.exam-card{min-height:96px;transition:transform .12s ease}
+.exam-card:active{transform:translateY(2px)}
+.link-row{min-height:52px}
+@media (prefers-reduced-motion:reduce){.exam-card{transition:none}}
