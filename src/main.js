@@ -3,6 +3,7 @@ import { UNITS, DECKS, AUDIOS, READINGS, WRITINGS, SPEAK } from "./content.js";
 import { EXAMS, OFFICIAL, SCORING, PRESENTAZIONE } from "./exams.js";
 import { PHRASES, PAIRS } from "./pronuncia.js";
 import { VOCAB } from "./vocab-data.js";
+import { METODO } from "./metodo.js";
 import { keyOf, fullSentence } from "./audio-keys.js";
 import { PAYWALL, PLANS } from "./config.js";
 import { DIALOGHI } from "./bank.js";
@@ -42,7 +43,7 @@ const I = (n, c = "") => `<svg class="icon ${c}" viewBox="0 0 24 24" aria-hidden
 /* ============================== ESTADO ============================== */
 const KEY = "cittadinanza-b1-v1";
 const blank = () => ({ v: 2, level: null, decks: null, xp: 0, streak: 0, lastDay: null, today: { day: null, xp: 0 },
-  lessons: {}, cards: {}, audio: {}, reading: {}, writing: {}, speak: {}, pron: {}, exams: [] });
+  lessons: {}, cards: {}, audio: {}, reading: {}, writing: {}, speak: {}, pron: {}, exams: [], mistakes: [], metodo: {}, sfx: true });
 let S = blank();
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(blank(), JSON.parse(raw)); } catch (e) {}
 const GOAL = 30;
@@ -191,7 +192,7 @@ function skills() {
 
 /* ============================== MOLDURA ============================== */
 const NAV = [["inicio", "Início", "home"], ["lezioni", "Lições", "book"], ["pratica", "Praticar", "target"], ["simulado", "Simulado", "clip"], ["prova", "A prova", "flag"]];
-const SECTION = { inicio: "inicio", lezioni: "lezioni", lezione: "lezioni", conta: "inicio", premium: "inicio", pratica: "pratica", vocaboli: "pratica", dizionario: "pratica", pronuncia: "pratica", ascolto: "pratica", lettura: "pratica", scrittura: "pratica", parlato: "pratica", simulado: "simulado", esame: "simulado", ufficiale: "simulado", prova: "prova" };
+const SECTION = { metodo: "pratica", erros: "pratica", inicio: "inicio", lezioni: "lezioni", lezione: "lezioni", conta: "inicio", premium: "inicio", pratica: "pratica", vocaboli: "pratica", dizionario: "pratica", pronuncia: "pratica", ascolto: "pratica", lettura: "pratica", scrittura: "pratica", parlato: "pratica", simulado: "simulado", esame: "simulado", ufficiale: "simulado", prova: "prova" };
 function renderBar() {
   const s = $("#streak"), x = $("#xp");
   if (s) s.innerHTML = I("fire") + (S.streak || 0);
@@ -218,7 +219,7 @@ const ring = (v, max) => { const r = 36, c = 2 * Math.PI * r, f = Math.min(1, v 
 
 /* ============================== PERGUNTAS (uma por vez) ==============================
    items: {s, o?, a?, f?, x?, tr?, say?}. Ao final chama onDone(acertos/total). */
-function stepQuiz(v, items, { title, onDone, onExit }) {
+function stepQuiz(v, items, { title, onDone, onExit, onItem }) {
   let i = 0, right = 0;
   document.body.classList.add("focus");
   const order = items.map((it) => (it.o ? shuffle(it.o.map((_, k) => k)) : null));
@@ -255,6 +256,9 @@ function stepQuiz(v, items, { title, onDone, onExit }) {
         if (!good) note = "Resposta: " + it.f[0] + ". " + note;
       }
       if (good) right++;
+      sfx(good ? "ok" : "err");
+      if (!good) addMistake(it);
+      if (onItem) onItem(it, good);
       const full = fullSentence(it);
       const dock = $("#dock"); dock.className = "dock " + (good ? "ok" : "ko");
       dock.innerHTML = `<div class="dock-in"><h3>${good ? I("check") + "Giusto!" : I("x") + "Quasi!"}</h3><p>${esc(note)}</p>
@@ -269,6 +273,7 @@ function stepQuiz(v, items, { title, onDone, onExit }) {
 }
 function doneScreen(v, score, xp, { title, again, next, nextLabel }) {
   const ok = score >= 0.8;
+  if (ok) celebrate();
   v.innerHTML = `<div class="done-hero"><div class="stamp ${ok ? "ok" : ""}"><div><b>${pct(score)}</b><span>${ok ? "Bravo!" : "Riprova"}</span></div></div>
     <h2>${ok ? "Ottimo lavoro!" : "Quase lá!"}</h2><p class="muted">${esc(title)}</p><span class="pill-tag ok">${I("star")} +${xp} XP</span>
     <p class="note">${ok ? "Você pode seguir para a próxima unidade." : "Acerte 80% ou mais para concluir. Revise a explicação e tente de novo."}</p></div>
@@ -330,11 +335,13 @@ const VIEWS = {
  },
 
  pratica(v) {
-  const tiles = [["vocaboli", "cards", "Vocabulário", `${learnedCount().toLocaleString("pt-BR")} palavras aprendidas`, ""], ["dizionario", "open", "Dicionário", `${DICT.length.toLocaleString("pt-BR")} palavras`, ""], ["pronuncia", "mic", "Pronúncia", "Ouça, repita e grave", "r"], ["ascolto", "head", "Escuta", `${AUDIOS.length} áudios`, ""], ["lettura", "open", "Leitura", `${READINGS.length} textos`, ""], ["scrittura", "pen", "Escrita", "Temas da prova", "r"], ["parlato", "chat", "Fala", "Conversa com cronômetro", ""]];
+  const tiles = [["metodo", "target", "Método 4 fases", `${METODO.length} unidades guiadas`, "r"], ["erros", "x", "Caderno de erros", `${(S.mistakes || []).length} para revisar`, ""], ["vocaboli", "cards", "Vocabulário", `${learnedCount().toLocaleString("pt-BR")} palavras aprendidas`, ""], ["dizionario", "open", "Dicionário", `${DICT.length.toLocaleString("pt-BR")} palavras`, ""], ["pronuncia", "mic", "Pronúncia", "Ouça, repita e grave", "r"], ["ascolto", "head", "Escuta", `${AUDIOS.length} áudios`, ""], ["lettura", "open", "Leitura", `${READINGS.length} textos`, ""], ["scrittura", "pen", "Escrita", "Temas da prova", "r"], ["parlato", "chat", "Fala", "Conversa com cronômetro", ""]];
   v.innerHTML = `<div class="stack"><span class="eyebrow">Pratica</span><h1>Praticar</h1><p class="muted">Treine cada habilidade da prova separadamente.</p></div>
   <div class="tiles">${tiles.map(([h, ic, t, d, c]) => `<a class="tile ${c}" href="#${h}"><span class="ic">${I(ic)}</span><b>${t}</b><span>${d}</span></a>`).join("")}</div>
+  <section class="card"><div class="row"><div style="flex:1"><b>Sons e confetes</b><p class="small muted">Efeitos ao acertar ou errar.</p></div><button class="btn sm ${S.sfx === false ? "ghost" : ""}" id="sfxtog" type="button">${S.sfx === false ? "Desligado" : "Ligado"}</button></div></section>
   <section class="card" ${isNative ? "hidden" : ""}><h3>Usar sem internet</h3><p class="small muted">As lições já funcionam offline. Baixe também os áudios (cerca de 8 MB) para ouvir sem conexão. Melhor fazer isso no Wi-Fi.</p>
     <div class="row"><button class="btn sm" id="dl" type="button">Baixar áudios</button><span class="small muted" id="dlp"></span></div></section>`;
+  $("#sfxtog").onclick = () => { S.sfx = S.sfx === false; save(); route(); };
   $("#dl").onclick = async () => {
     const b = $("#dl"), p = $("#dlp"); b.disabled = true;
     try {
@@ -586,6 +593,141 @@ const VIEWS = {
   ${isNative ? "" : `<a class="card" href="https://github.com/viniciusliniker1-spec/italiano-b1/releases/latest/download/Cittadino.apk" style="text-decoration:none;color:inherit;grid-template-columns:auto 1fr;align-items:center"><img src="./icons/icon-192.png" alt="" width="48" height="48" style="border-radius:12px"><div><b>Baixar o app para Android</b><p class="small muted">Arquivo Cittadino.apk. Depois de baixar, abra o arquivo e permita a instalação.</p></div></a>`}
   <p class="note">Áudios gerados com vozes italianas neurais (Piper TTS, código aberto). Vocabulário baseado no <i>Nuovo Vocabolario di Base della lingua italiana</i> (T. De Mauro, I. Chiari, F. Ferrucci, 2016).</p>`;
  },
+};
+
+/* ============================== SONS, CONFETES E CADERNO DE ERROS ============================== */
+let actx = null;
+function sfx(type) {
+  if (S.sfx === false) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+    const t0 = actx.currentTime;
+    const tone = (f, at, d, vol, wave) => {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = wave; o.frequency.setValueAtTime(f, t0 + at);
+      g.gain.setValueAtTime(0.001, t0 + at); g.gain.exponentialRampToValueAtTime(vol, t0 + at + 0.015); g.gain.exponentialRampToValueAtTime(0.001, t0 + at + d);
+      o.connect(g); g.connect(actx.destination); o.start(t0 + at); o.stop(t0 + at + d + 0.02);
+    };
+    if (type === "ok") { tone(523.25, 0, 0.12, 0.08, "triangle"); tone(659.25, 0.08, 0.18, 0.09, "triangle"); }
+    else if (type === "err") { tone(220, 0, 0.14, 0.07, "sawtooth"); tone(185, 0.09, 0.18, 0.06, "sawtooth"); }
+    else if (type === "win") [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, i * 0.09, 0.22, 0.08, "triangle"));
+  } catch (e) {}
+}
+function celebrate() {
+  sfx("win");
+  if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const c = document.createElement("canvas"); c.id = "confetti"; c.width = innerWidth; c.height = innerHeight; document.body.appendChild(c);
+  const x = c.getContext("2d"), cols = ["#008C45", "#F4F5F0", "#CD212A", "#B8861B"];
+  const ps = Array.from({ length: 90 }, () => ({ x: c.width / 2, y: c.height * 0.65, vx: (Math.random() - 0.5) * 12, vy: -Math.random() * 13 - 3, r: Math.random() * 6 + 3, a: Math.random() * 6, c: cols[Math.floor(Math.random() * 4)] }));
+  let f = 0;
+  (function frame() {
+    x.clearRect(0, 0, c.width, c.height);
+    ps.forEach((p) => { p.vy += 0.35; p.x += p.vx; p.y += p.vy; p.a += 0.2; x.save(); x.translate(p.x, p.y); x.rotate(p.a); x.fillStyle = p.c; x.fillRect(-p.r, -p.r / 2, p.r * 2, p.r); x.restore(); });
+    if (++f < 90) requestAnimationFrame(frame); else c.remove();
+  })();
+}
+function addMistake(it) {
+  S.mistakes = S.mistakes || [];
+  if (S.mistakes.some((m) => m.s === it.s)) return;
+  S.mistakes.unshift({ s: it.s, o: it.o, a: it.a, f: it.f, x: it.x, tr: it.tr, say: it.say });
+  S.mistakes = S.mistakes.slice(0, 40); save();
+}
+
+VIEWS.erros = function (v) {
+  const list = S.mistakes || [];
+  v.innerHTML = `${back("#pratica", "Praticar")}<div class="stack"><span class="eyebrow">Quaderno</span><h1>Caderno de erros</h1><p class="muted">As questões que você errou nas lições vêm para cá. Treine até acertar e elas saem da lista.</p></div>
+  ${list.length ? `<button class="btn block" id="train" type="button">Treinar ${list.length} ${list.length === 1 ? "erro" : "erros"} ${I("arrow")}</button>
+  <section class="card">${list.map((m, i) => `<div class="phrase"><p class="it">${esc(m.s)}</p><p class="small"><b>Resposta:</b> ${esc(m.o ? m.o[m.a] : (m.f || [""])[0])}</p>${m.x ? `<p class="small muted">${esc(m.x)}</p>` : ""}<button class="play slow" data-rm="${i}" type="button">Já dominei</button></div>`).join("")}</section>
+  <button class="small muted" id="clr" type="button" style="justify-self:start;text-decoration:underline">Limpar caderno</button>`
+    : `<section class="card" style="text-align:center"><h3>Caderno zerado!</h3><p class="muted">Quando você errar uma questão numa lição, ela aparece aqui para revisão.</p></section>`}`;
+  $$("[data-rm]", v).forEach((b) => (b.onclick = () => { S.mistakes.splice(+b.dataset.rm, 1); save(); route(); }));
+  if ($("#clr")) $("#clr").onclick = () => { S.mistakes = []; save(); route(); };
+  if ($("#train")) $("#train").onclick = () => {
+    const items = list.slice(0, 10).map((m) => ({ ...m }));
+    stepQuiz(v, items, { title: "Erros", onExit: () => route(), onItem: (it, good) => { if (good) S.mistakes = (S.mistakes || []).filter((m) => m.s !== it.s); save(); }, onDone: (sc) => { const xp = Math.round(sc * 10); touch(xp); doneScreen(v, sc, xp, { title: "Caderno de erros", again: () => route(), next: "#erros", nextLabel: "Voltar ao caderno" }); } });
+  };
+};
+
+/* ============================== MÉTODO EM 4 FASES ============================== */
+VIEWS.metodo = function (v, id) {
+  const u = METODO.find((x) => x.id === id);
+  if (!u) {
+    v.innerHTML = `${back("#pratica", "Praticar")}<div class="stack"><span class="eyebrow">Metodo</span><h1>Método 4 fases</h1><p class="muted">Cada unidade troca a decoreba por 4 etapas: ouvir o diálogo, descobrir a regra e as armadilhas, montar a frase e repetir em voz alta (shadowing).</p></div>
+    <section class="card">${METODO.map((m) => `<a class="link-row" href="#metodo--${m.id}">${I("target")}<div><b>${esc(m.title)}</b><br><span class="small muted">${esc(m.stageLabel)} · ${m.minutes} min</span></div>${(S.metodo || {})[m.id] ? `<span class="pill-tag ok">${I("check")} Feito</span>` : ""}</a>`).join("")}</section>`;
+    return;
+  }
+  let phase = 0, showTr = false;
+  const NAMES = ["1 Imersão", "2 Descoberta", "3 Prática", "4 Shadowing"];
+  const voiceOf = (l) => (l.spk === "Tu" ? "m" : "f");
+  const draw = () => {
+    stopAudio();
+    const tabs = `<div class="phases">${NAMES.map((n, i) => `<button type="button" data-ph="${i}" ${i === phase ? 'aria-current="step"' : ""} class="${i < phase ? "done" : ""}">${n}</button>`).join("")}</div>`;
+    let body = "";
+    if (phase === 0) body = `<p class="muted small">Ouça o diálogo primeiro. Só abra a tradução se precisar.</p><button class="play slow" id="tr" type="button">${showTr ? "Ocultar tradução" : "Ver tradução"}</button>
+      <div>${u.dialogue.map((l, i) => `<div class="line"><div><span class="spk ${l.spk === "Tu" ? "me" : ""}">${esc(l.spk)}</span><p><b>${esc(l.it)}</b></p>${showTr ? `<p class="small muted">${esc(l.pt)}</p>` : ""}</div>${playBtn(`data-l="${i}"`, "")}</div>`).join("")}</div>
+      <button class="btn block" data-go="1" type="button">Ir para a Descoberta ${I("arrow")}</button>`;
+    if (phase === 1) body = `<div class="rule"><b>${esc(u.discovery.ruleTitle)}</b><p class="small" style="margin-top:6px">${esc(u.discovery.ruleBody)}</p></div>
+      <span class="eyebrow">Armadilhas comuns de brasileiros</span>
+      ${u.discovery.traps.map((t) => `<div class="trap"><div class="no"><b>Evite:</b> ${esc(t.wrong)}</div><div class="yes"><b>Use:</b> ${esc(t.right)}</div></div>`).join("")}
+      <button class="btn block" data-go="2" type="button">Ir para a Prática ${I("arrow")}</button>`;
+    if (phase === 2) body = `<h3>Monte a frase</h3><p>${esc(u.builder.prompt)}</p>${playBtn('id="bsay"', "Ouvir modelo")}
+      <div class="tokens slot" id="slot"></div><div class="tokens" id="pool"></div><div class="row"><button class="btn sm" id="bcheck" type="button">Conferir</button><button class="btn sm ghost" id="breset" type="button">Limpar</button></div><div id="bfb"></div>
+      <h3 style="margin-top:8px">Quiz</h3><p>${esc(u.quiz.prompt)}</p>${playBtn('id="qsay"', "Ouvir")}
+      <div class="opts">${u.quiz.options.map((o, i) => `<button class="opt" type="button" data-q="${i}"><span class="k">${ABC[i]}</span>${esc(o)}</button>`).join("")}</div><div id="qfb"></div>
+      <button class="btn block" data-go="3" type="button">Ir para o Shadowing ${I("arrow")}</button>`;
+    if (phase === 3) body = `<p class="muted small">Ouça, leia a pronúncia e repita em voz alta, imitando a entonação.</p>
+      <div class="flash" style="min-height:0;cursor:default"><div class="stack" style="justify-items:center"><div class="word" style="font-size:1.5rem">${esc(u.shadowing.it)}</div><div class="pron">${esc(u.shadowing.pron)}</div><p class="muted">${esc(u.shadowing.pt)}</p></div></div>
+      <div class="row">${playBtn('id="ssay"')}${playBtn('id="sslow"', "0,7×", "slow")}${SR ? `<button class="play mic" id="slisten" type="button">${I("mic")}Falar</button>` : ""}${canRec ? `<button class="play mic" id="srec" type="button">${I("mic")}Gravar</button>` : ""}</div><div id="sout"></div>
+      <button class="btn block" id="finish" type="button">Concluir unidade ${I("check")}</button>`;
+    v.innerHTML = `${back("#metodo", "Trilha")}<div class="stack"><span class="eyebrow">${esc(u.stageLabel)}</span><h1>${esc(u.title)}</h1><p class="muted small">${esc(u.subtitle)}</p></div>${tabs}<section class="card">${body}</section>`;
+    $$("[data-ph]", v).forEach((b) => (b.onclick = () => { phase = +b.dataset.ph; draw(); }));
+    $$("[data-go]", v).forEach((b) => (b.onclick = () => { phase = +b.dataset.go; draw(); window.scrollTo(0, 0); }));
+    if (phase === 0) { $("#tr").onclick = () => { showTr = !showTr; draw(); }; $$("[data-l]", v).forEach((b) => (b.onclick = () => { const l = u.dialogue[+b.dataset.l]; say(l.it, voiceOf(l), { btn: b }); })); }
+    if (phase === 2) {
+      const toks = shuffle(u.builder.tokens.map((t, i) => ({ t, i }))); let picked = [];
+      const paint = () => {
+        $("#slot").innerHTML = picked.map((k, n) => `<button class="tok" type="button" data-un="${n}">${esc(k.t)}</button>`).join("");
+        $("#pool").innerHTML = toks.map((k) => `<button class="tok ${picked.includes(k) ? "used" : ""}" type="button" data-k="${k.i}">${esc(k.t)}</button>`).join("");
+        $$("[data-un]", v).forEach((b) => (b.onclick = () => { picked.splice(+b.dataset.un, 1); paint(); }));
+        $$("[data-k]", v).forEach((b) => (b.onclick = () => { picked.push(toks.find((k) => k.i === +b.dataset.k)); sfx("ok"); paint(); }));
+      };
+      paint();
+      $("#bsay").onclick = (e) => say(u.builder.audio, "f", { btn: e.currentTarget });
+      $("#breset").onclick = () => { picked = []; $("#slot").className = "tokens slot"; $("#bfb").innerHTML = ""; paint(); };
+      $("#bcheck").onclick = () => {
+        const good = picked.length === u.builder.tokens.length && picked.every((k, n) => k.t === u.builder.tokens[n]);
+        $("#slot").className = "tokens slot " + (good ? "ok" : "ko"); sfx(good ? "ok" : "err");
+        $("#bfb").innerHTML = `<p class="fb ${good ? "ok" : "ko"}" style="margin-top:8px">${good ? "Perfeito! " : "Ainda não. "}${esc(u.builder.explanation)}</p>`;
+        if (good) { say(u.builder.audio, "f"); touch(5); }
+      };
+      $("#qsay").onclick = (e) => say(u.quiz.audio, "f", { btn: e.currentTarget });
+      let answered = false;
+      $$("[data-q]", v).forEach((b) => (b.onclick = () => {
+        if (answered) return; answered = true; const k = +b.dataset.q, good = k === u.quiz.answer;
+        $$("[data-q]", v).forEach((x) => { x.disabled = true; if (+x.dataset.q === u.quiz.answer) x.classList.add("right"); });
+        if (!good) b.classList.add("wrong"); sfx(good ? "ok" : "err"); if (good) touch(5);
+        else addMistake({ s: u.quiz.prompt, o: u.quiz.options, a: u.quiz.answer, x: u.quiz.explanation });
+        $("#qfb").innerHTML = `<p class="fb ${good ? "ok" : "ko"}" style="margin-top:8px">${good ? "Giusto! " : "Quasi! "}${esc(u.quiz.explanation)}</p>`;
+      }));
+    }
+    if (phase === 3) {
+      $("#ssay").onclick = (e) => say(u.shadowing.it, "f", { btn: e.currentTarget });
+      $("#sslow").onclick = (e) => say(u.shadowing.it, "f", { btn: e.currentTarget, rate: 0.7 });
+      if ($("#srec")) $("#srec").onclick = (e) => toggleRecord(e.currentTarget, $("#sout"));
+      if ($("#slisten")) $("#slisten").onclick = async (e) => {
+        const b = e.currentTarget; stopAudio(); b.classList.add("rec");
+        try {
+          const r = await listen(u.shadowing.it); b.classList.remove("rec");
+          if (!r) { $("#sout").innerHTML = `<p class="small muted">Não ouvi nada. Toque em Falar e repita a frase.</p>`; return; }
+          sfx(r.score >= 0.7 ? "ok" : "err");
+          $("#sout").innerHTML = `<div class="heard"><p>${r.tw.map((w, k) => `<span class="${r.marks[k] ? "w-ok" : "w-ko"}">${esc(w)}</span>`).join(" ")}</p><p class="small muted">${pct(r.score)} das palavras</p></div>`;
+        } catch (err) { b.classList.remove("rec"); $("#sout").innerHTML = `<p class="banner">Não consegui usar o microfone. Use Gravar.</p>`; }
+      };
+      $("#finish").onclick = () => { const first = !(S.metodo || {})[u.id]; S.metodo = S.metodo || {}; S.metodo[u.id] = 1; touch(first ? 20 : 3); celebrate(); location.hash = "#metodo"; };
+    }
+  };
+  draw();
 };
 
 /* ============================== DICIONÁRIO ============================== */

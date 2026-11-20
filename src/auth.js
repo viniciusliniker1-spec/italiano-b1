@@ -54,6 +54,8 @@ export function mergeProgress(a = {}, b = {}) {
     streak: a.lastDay === b.lastDay ? Math.max(a.streak || 0, b.streak || 0) : newer.streak || 0, lastDay: newer.lastDay || null,
     today: tA.day === tB.day ? { day: tA.day, xp: Math.max(tA.xp || 0, tB.xp || 0) } : (tA.day || "") > (tB.day || "") ? tA : tB,
     lessons, cards, exams,
+    mistakes: [...new Map([...(a.mistakes || []), ...(b.mistakes || [])].map((x) => [x.s, x])).values()].slice(0, 40),
+    metodo: maxMap(a.metodo, b.metodo),
     audio: maxMap(a.audio, b.audio), reading: maxMap(a.reading, b.reading), writing: maxMap(a.writing, b.writing),
     speak: maxMap(a.speak, b.speak), pron: maxMap(a.pron, b.pron),
   };

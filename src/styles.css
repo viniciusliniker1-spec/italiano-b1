@@ -256,3 +256,25 @@ ul.clean{margin:0;padding-left:20px;display:grid;gap:6px}
 .exam-card:active{transform:translateY(2px)}
 .link-row{min-height:52px}
 @media (prefers-reduced-motion:reduce){.exam-card{transition:none}}
+
+/* método em 4 fases */
+.phases{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.phases button{min-height:40px;border-radius:10px;background:var(--surface-2);font-size:.78rem;font-weight:700;color:var(--muted)}
+.phases button[aria-current="step"]{background:var(--verde);color:#fff}
+.phases button.done{color:var(--verde-ink)}
+.line{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}
+.line:first-child{border-top:0}
+.line .spk{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.line .spk.me{color:var(--verde-ink)}
+.rule{padding:14px;border-radius:14px;background:var(--verde-soft);border:1px solid var(--verde)}
+.trap{display:grid;gap:8px;grid-template-columns:1fr}
+@media (min-width:520px){.trap{grid-template-columns:1fr 1fr}}
+.trap div{padding:10px 12px;border-radius:12px;font-size:.9rem}
+.trap .no{background:var(--rosso-soft);border:1px solid var(--rosso)}
+.trap .yes{background:var(--verde-soft);border:1px solid var(--verde)}
+.tokens{display:flex;flex-wrap:wrap;gap:8px;min-height:48px}
+.tok{min-height:44px;padding:0 14px;border-radius:12px;background:var(--surface);border:2px solid var(--line);box-shadow:0 3px 0 var(--line);font-weight:600;font-size:1rem}
+.tok.used{opacity:.3;pointer-events:none}
+.slot{min-height:64px;padding:10px;border-radius:14px;border:2px dashed var(--line);background:var(--surface-2);align-content:flex-start}
+.slot.ok{border-color:var(--ok,var(--verde));border-style:solid}.slot.ko{border-color:var(--rosso);border-style:solid}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:60}

@@ -4,6 +4,7 @@ import { UNITS, DECKS, AUDIOS, READINGS, SPEAK } from "./content.js";
 import { EXAMS, PRESENTAZIONE } from "./exams.js";
 import { PHRASES, PAIRS } from "./pronuncia.js";
 import { VOCAB } from "./vocab-data.js";
+import { METODO } from "./metodo.js";
 
 export const norm = (t) => String(t).replace(/\s+/g, " ").trim();
 export const keyOf = (text, voice = "f") => voice + "|" + norm(text);
@@ -43,6 +44,10 @@ export function allClips() {
   }
   for (const d of DECKS) d.w.forEach((w) => one(w[0]));
   for (const w of VOCAB) one(w[0]);
+  for (const u of METODO) {
+    u.dialogue.forEach((l) => one(l.it, l.spk === "Tu" ? "m" : "f"));
+    one(u.builder.audio); one(u.quiz.audio); one(u.shadowing.it);
+  }
   for (const a of AUDIOS) add("d|" + a.id, dialogParts(a.tx, a.v));
   for (const r of READINGS) one(r.tx.replace(/\n+/g, " "));
   for (const s of SPEAK) one(s.m);
